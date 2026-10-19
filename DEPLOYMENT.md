@@ -23,7 +23,12 @@ Hosting expects. Local development is unchanged; see the main README.
 | Install | `npm ci --omit=dev` |
 | Build | `npm run build` |
 | Start | `npm start` |
+| Preview | `npm run dev` (build, then the same production server) |
 | Health | `GET /api/health` (process up), `GET /api/health/db` (database reachable) |
+
+`npm run dev` exists for hosting previews that launch apps with it (GoDaddy's
+Airo preview). It is not the Vite development setup; for local development
+see the main README.
 
 ## How it works
 
@@ -100,6 +105,19 @@ by the pool yet.
 3. **Everything on GoDaddy** requires replacing the direct Postgres connection
    with HTTPS (Supabase's REST API) or GoDaddy MySQL. That is a data-layer
    rewrite, not a configuration change.
+
+## Reading startup failures
+
+Each failure prints a distinct line in the host's build or runtime log:
+
+| Log line | Cause |
+| --- | --- |
+| `npm error Missing script: "dev"` / `"start"` | The host ran a script this package lacks. |
+| `Missing …/backend/dist/src/server.js — run npm run build` | Started before (or without) a successful build. |
+| `Vite requires Node.js version …` or `Unsupported engine` | Host Node.js is older than 22.12. |
+| `Invalid backend environment configuration.` followed by names | Required environment variables are not set. |
+| `Database    NOT CONNECTED — … timeout` | The server is up but cannot reach Supabase (blocked egress or wrong `DB_*`). `/api/health` answers; pages return 500 after ~15 s. |
+| `Vielinea API … Listening … Storefront served from …` | Started successfully. |
 
 ## Verify a build locally
 
