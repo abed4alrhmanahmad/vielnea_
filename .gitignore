@@ -1,0 +1,114 @@
+# ---------------------------------------------------------------------------
+# Vielinea — repository-root ignore rules
+#
+# backend/.gitignore and frontend/.gitignore still apply inside their own
+# directories. The rules here are the repo-wide safety net, so a secret or a
+# build artifact stays untracked even if it lands somewhere unexpected.
+# ---------------------------------------------------------------------------
+
+# --- Secrets & local environment -------------------------------------------
+# Anything .env* is ignored, then the committed templates are re-included.
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Cloudflare / Wrangler local secrets
+.dev.vars
+.dev.vars.*
+
+# Stray credential material
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+*.jks
+id_rsa
+id_rsa.*
+*service-account*.json
+*serviceaccount*.json
+secrets.json
+credentials.json
+
+# --- Dependencies ----------------------------------------------------------
+node_modules/
+.pnp
+.pnp.js
+.yarn/cache
+.yarn/install-state.gz
+
+# Python (some sibling tooling uses a venv)
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# --- Build output ----------------------------------------------------------
+dist/
+dist-ssr/
+build/
+out/
+.next/
+.nuxt/
+.output/
+.vercel/
+.netlify/
+.wrangler/
+
+# TanStack Start / Vinxi / Nitro
+.vinxi/
+.nitro/
+.tanstack/
+
+# Caches
+.cache/
+.parcel-cache/
+.turbo/
+.eslintcache
+*.tsbuildinfo
+.vite/
+
+# --- Logs ------------------------------------------------------------------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# --- Test / coverage -------------------------------------------------------
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+
+# --- Editors & IDEs --------------------------------------------------------
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.vs/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# --- OS --------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# --- Misc local scratch ----------------------------------------------------
+*.local
+tmp/
+temp/
+*.bak
+*.orig
+*.rej

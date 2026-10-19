@@ -1,0 +1,15 @@
+{
+  "name": "vielinea",
+  "version": "1.0.0",
+  "private": true,
+  "description": "VIELINEA storefront and API as one Node.js app, for GoDaddy Node.js Hosting. See DEPLOYMENT.md.",
+  "type": "module",
+  "main": "server.mjs",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "node server.mjs"
+  }
+}

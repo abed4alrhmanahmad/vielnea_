@@ -1,0 +1,159 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+/* Playfair is only ever rendered at 500: the rule below sets that weight on
+   h1-h6 and .font-display, and nothing in the app overrides it with a
+   font-weight utility, so 400/600/700 were downloaded-never-used @font-face
+   declarations. Add the matching import back if a weight class is introduced. */
+@import "@fontsource/playfair-display/500.css";
+@import "@fontsource-variable/inter";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-dark: var(--primary-dark);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --font-display: "Playfair Display", ui-serif, Georgia, serif;
+  --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  --radius: 0.375rem;
+  --background: oklch(0.972 0.017 82);
+  --foreground: oklch(0.28 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.28 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.28 0 0);
+  --primary: oklch(0.35 0.11 320);
+  --primary-foreground: oklch(0.985 0.005 80);
+  --primary-dark: oklch(0.29 0.1 320);
+  --secondary: oklch(0.93 0.023 80);
+  --secondary-foreground: oklch(0.28 0 0);
+  --muted: oklch(0.93 0.023 80);
+  --muted-foreground: oklch(0.5 0 0);
+  --accent: oklch(0.93 0.023 80);
+  --accent-foreground: oklch(0.35 0.11 320);
+  --destructive: oklch(0.55 0.19 25);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.9 0.018 80);
+  --input: oklch(0.9 0.018 80);
+  --ring: oklch(0.35 0.11 320);
+  --sidebar: oklch(0.972 0.017 82);
+  --sidebar-foreground: oklch(0.28 0 0);
+  --sidebar-primary: oklch(0.35 0.11 320);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.93 0.023 80);
+  --sidebar-accent-foreground: oklch(0.35 0.11 320);
+  --sidebar-border: oklch(0.9 0.018 80);
+  --sidebar-ring: oklch(0.35 0.11 320);
+  --shadow-soft: 0 10px 40px -20px oklch(0.35 0.11 320 / 0.15);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  .font-display {
+    font-family: var(--font-display);
+    font-weight: 500;
+    letter-spacing: -0.01em;
+  }
+}
+
+@utility container-luxe {
+  width: 100%;
+  margin-inline: auto;
+  padding-inline: 1.25rem;
+  max-width: 1400px;
+}
+
+@utility btn-primary-luxe {
+  background-color: var(--color-primary);
+  color: var(--color-primary-foreground);
+  transition: background-color 200ms ease;
+}
+
+/* Instagram strip marquee. The track carries two identical image groups, so
+   sliding it right by exactly one group width (`--insta-shift`, set per
+   breakpoint on the track) lands on a pixel-identical frame — the loop reads
+   as one continuous strip with no seam. */
+@keyframes insta-marquee {
+  from {
+    transform: translate3d(var(--insta-shift, -100%), 0, 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* Above-the-fold entrance.
+   
+   Same fade-and-rise the hero and page body have always used, expressed in CSS
+   rather than driven from JavaScript. The reason is paint timing, not looks:
+   a JS-driven entrance renders its hidden starting state into the server HTML,
+   so above-the-fold content — including the LCP image — stayed invisible until
+   the bundle downloaded and hydrated. In CSS the same animation starts at
+   first paint, so the hero is on screen immediately and still animates in.
+
+   Per-element timing is passed in as `--enter-*` so each piece keeps the
+   exact duration, offset and stagger it had before. */
+@keyframes enter-rise {
+  from {
+    opacity: 0;
+    transform: translateY(var(--enter-from, 12px));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@utility enter-rise {
+  animation: enter-rise var(--enter-duration, 700ms) ease-out
+    var(--enter-delay, 0ms) both;
+}

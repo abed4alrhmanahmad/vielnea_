@@ -1,0 +1,49 @@
+# Secrets — never commit
+.env
+.env.local
+.env.*.local
+# Catch-all for any other .env variant, with the template re-included.
+.env.*
+!.env.example
+
+# Stray credential material
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_rsa.*
+*service-account*.json
+*serviceaccount*.json
+secrets.json
+credentials.json
+
+# Build output
+dist/
+
+# Dependencies
+node_modules/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Caches / test output
+coverage/
+.nyc_output/
+*.tsbuildinfo
+.eslintcache
+tmp/
+temp/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+Desktop.ini
+.vscode/*
+!.vscode/extensions.json
+.idea
+.vs/
+*.suo
+*.sw?
