@@ -14,7 +14,8 @@ interface ShopHeroProps {
  * on the left, so every breakpoint uses an aspect ratio at or below 3/2 — all
  * well under the source. That way `object-cover` only ever trims the empty
  * left side: the figure is never cut off at the head or the feet, and the
- * image is never distorted.
+ * image is never distorted. Below md the photo is a square above the text, so
+ * the copy never covers the outfit; from md up the text overlays the wall.
  */
 export function ShopHero({ targetId }: ShopHeroProps) {
   const scrollToProducts = (e: React.MouseEvent<HTMLAnchorElement>) => {
@@ -32,7 +33,7 @@ export function ShopHero({ targetId }: ShopHeroProps) {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.9, ease: "easeOut" }}
-          className="relative isolate mx-auto w-full max-w-[1120px] overflow-hidden rounded-lg my-6 md:my-10 aspect-[3/4] sm:aspect-[4/3] md:aspect-[7/5] lg:aspect-[3/2]"
+          className="relative isolate mx-auto flex w-full max-w-[1120px] flex-col overflow-hidden rounded-lg my-6 md:my-10 md:block md:aspect-[7/5] lg:aspect-[3/2]"
         >
           {/* This is the shop page's LCP. It is not resized per breakpoint on
               purpose: the frame is portrait on phones and `object-cover` then
@@ -52,15 +53,16 @@ export function ShopHero({ targetId }: ShopHeroProps) {
               height={768}
               fetchPriority="high"
               decoding="async"
-              className="absolute inset-0 size-full object-cover object-[86%_center] sm:object-[70%_center] md:object-[62%_center] lg:object-center"
+              className="relative aspect-square w-full object-cover object-[86%_center] md:absolute md:inset-0 md:aspect-auto md:size-full md:object-[62%_center] lg:object-center"
             />
           </picture>
 
-          {/* Light scrim so the dark brand type stays readable: rising from the
-              bottom on narrow screens, sweeping in from the left from md up. */}
-          <div className="absolute inset-0 bg-gradient-to-t from-background from-10% via-background/70 via-45% to-transparent to-72% md:bg-gradient-to-r md:from-background/92 md:from-0% md:via-background/55 md:via-35% md:to-transparent md:to-64%" />
+          {/* Light scrim so the dark brand type stays readable over the photo,
+              sweeping in from the left. Below md the text sits under the photo
+              instead, so the model's outfit is never covered. */}
+          <div className="absolute inset-0 hidden md:block md:bg-gradient-to-r md:from-background/92 md:from-0% md:via-background/55 md:via-35% md:to-transparent md:to-64%" />
 
-          <div className="relative z-10 flex h-full flex-col justify-end md:justify-center px-7 py-10 sm:px-9 md:px-12 lg:px-16 md:py-0 max-w-[30rem] lg:max-w-[34rem]">
+          <div className="relative z-10 flex h-full flex-col justify-end md:justify-center bg-background/70 md:bg-transparent px-7 py-8 sm:px-9 md:px-12 lg:px-16 md:py-0 max-w-none md:max-w-[30rem] lg:max-w-[34rem]">
             <motion.p
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}

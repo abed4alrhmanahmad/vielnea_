@@ -54,8 +54,8 @@ function AdminInventoryPage() {
         </CardContent>
       </Card>
       <Card>
-        <CardContent className="p-0">
-          <table className="w-full text-sm">
+        <CardContent className="p-0 overflow-x-auto">
+          <table className="w-full min-w-[560px] text-sm">
             <thead>
               <tr className="text-left text-xs uppercase tracking-widest text-muted-foreground border-b border-border">
                 <th className="p-3">Product</th>
@@ -69,7 +69,16 @@ function AdminInventoryPage() {
                 <tr key={p.id} className="border-b border-border/60 last:border-b-0">
                   <td className="p-3">
                     <div className="flex items-center gap-3">
-                      <img src={p.images[0]} alt="" className="size-10 object-cover rounded" />
+                      {p.images[0] ? (
+                        <img
+                          src={p.images[0]}
+                          alt=""
+                          className="size-10 shrink-0 object-cover rounded"
+                        />
+                      ) : (
+                        // Products saved without images: an empty tile, not a broken image.
+                        <div className="size-10 shrink-0 rounded bg-secondary" aria-hidden />
+                      )}
                       <span>{p.title}</span>
                     </div>
                   </td>

@@ -26,8 +26,8 @@ function AdminReviewsPage() {
         {reviews.map((r) => (
           <Card key={r.id}>
             <CardContent className="p-4 flex items-start justify-between gap-4">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
+              <div className="flex-1 min-w-0">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1">
                   <span className="font-medium">{r.author}</span>
                   <span className="text-xs text-muted-foreground">on {r.productTitle}</span>
                   <Badge
@@ -52,7 +52,7 @@ function AdminReviewsPage() {
                 </div>
                 <p className="text-sm text-muted-foreground">{r.body}</p>
               </div>
-              <div className="flex gap-1">
+              <div className="flex shrink-0 gap-1">
                 <Button
                   size="sm"
                   variant="ghost"

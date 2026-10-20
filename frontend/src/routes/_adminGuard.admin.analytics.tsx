@@ -68,7 +68,7 @@ function AdminAnalyticsPage() {
           <h3 className="font-display mb-3">Revenue — last 30 days</h3>
           <ChartContainer
             config={{ revenue: { label: "Revenue", color: "hsl(var(--primary))" } }}
-            className="h-64 w-full"
+            className="h-64 w-full aspect-auto"
           >
             <LineChart data={daily}>
               <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
@@ -86,7 +86,7 @@ function AdminAnalyticsPage() {
             <h3 className="font-display mb-3">Top sellers</h3>
             <ChartContainer
               config={{ qty: { label: "Sold", color: "hsl(var(--primary))" } }}
-              className="h-56 w-full"
+              className="h-56 w-full aspect-auto"
             >
               <BarChart data={top} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" opacity={0.3} />

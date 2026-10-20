@@ -302,12 +302,14 @@ export function PageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 mb-6">
-      <div>
+    // Wraps on narrow screens: the actions drop under the title instead of
+    // pushing the page wider than the viewport.
+    <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+      <div className="min-w-0">
         <h1 className="font-display text-3xl md:text-4xl text-foreground">{title}</h1>
         {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
       </div>
-      {actions && <div className="flex gap-2 shrink-0">{actions}</div>}
+      {actions && <div className="flex flex-wrap gap-2 shrink-0">{actions}</div>}
     </div>
   );
 }

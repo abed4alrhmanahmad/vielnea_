@@ -515,12 +515,12 @@ function ProductRow({
 }) {
   return (
     <section className="container-luxe py-16">
-      <div className="flex items-end justify-between mb-8">
+      <div className="flex items-end justify-between gap-4 mb-8">
         <h2 className="font-display text-3xl md:text-4xl text-foreground">{title}</h2>
         <Link
           to={link}
           search={linkSearch as never}
-          className="text-xs uppercase tracking-[0.25em] text-primary hover:text-primary-dark flex items-center gap-1"
+          className="shrink-0 whitespace-nowrap pb-1 text-xs uppercase tracking-[0.25em] text-primary hover:text-primary-dark flex items-center gap-1"
         >
           View All <ArrowRight className="size-3" />
         </Link>

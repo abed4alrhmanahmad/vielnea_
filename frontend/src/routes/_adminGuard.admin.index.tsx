@@ -113,7 +113,7 @@ function DashboardPage() {
             </div>
             <ChartContainer
               config={{ revenue: { label: "Revenue", color: "hsl(var(--primary))" } }}
-              className="h-64 w-full"
+              className="h-64 w-full aspect-auto"
             >
               <AreaChart data={revenueByDay}>
                 <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
@@ -137,7 +137,7 @@ function DashboardPage() {
             <h3 className="font-display text-lg mb-4">Best Sellers</h3>
             <ChartContainer
               config={{ qty: { label: "Units sold", color: "hsl(var(--primary))" } }}
-              className="h-64 w-full"
+              className="h-64 w-full aspect-auto"
             >
               <BarChart data={bestSellers} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" opacity={0.3} />

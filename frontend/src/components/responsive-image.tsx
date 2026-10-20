@@ -37,7 +37,19 @@ type Props = Omit<React.ImgHTMLAttributes<HTMLImageElement>, "srcSet" | "sizes">
 export function ResponsiveImage({ src, sizes, ...imgProps }: Props) {
   const variants = src ? IMAGE_VARIANTS[src] : undefined;
 
-  if (!src || !variants) return <img src={src} {...imgProps} />;
+  // A product saved without images: keep the frame's size with a neutral tile
+  // rather than a source-less <img>, which renders as a broken image.
+  if (!src) {
+    const label = imgProps.alt;
+    return (
+      <span
+        className={`block bg-secondary ${imgProps.className ?? ""}`}
+        {...(label ? { role: "img", "aria-label": label } : { "aria-hidden": true })}
+      />
+    );
+  }
+
+  if (!variants) return <img src={src} {...imgProps} />;
 
   const stem = src.replace(/\.(jpe?g|png|webp)$/i, "");
   const srcSet = variants.widths.map((w) => `${stem}-${w}.webp ${w}w`).join(", ");

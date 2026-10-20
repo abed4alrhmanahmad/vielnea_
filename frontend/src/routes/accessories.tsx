@@ -123,7 +123,9 @@ function AccessoriesPage() {
             height={768}
             fetchPriority="high"
             decoding="async"
-            className="absolute inset-0 size-full object-cover object-center"
+            // The brooches sit in the right half of the photo; on the 4:3 phone
+            // frame a centred crop cuts the last one off, so phones crop right.
+            className="absolute inset-0 size-full object-cover object-right sm:object-center"
           />
         </motion.div>
       </div>

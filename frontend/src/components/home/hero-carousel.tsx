@@ -6,24 +6,34 @@ const INTERVAL_MS = 3000;
 /** Slide transition. Kept in the 500–600ms band the design calls for. */
 const TRANSITION_MS = 550;
 
-/** Repeated on the frame and on every slide, so they stay the same height. */
-const FRAME_HEIGHT = "min-h-[520px] md:min-h-[540px] lg:min-h-[620px]";
+/**
+ * Repeated on the frame and on every slide, so they stay the same height.
+ * Below `md` a slide is image-then-text and sizes to its content instead.
+ */
+const FRAME_HEIGHT = "md:min-h-[540px] lg:min-h-[620px]";
 
 /**
- * The frame is far wider than the source photographs, so `object-fit: cover`
- * always discards a band of image height and the slide's `objectPosition`
- * decides which band. On mobile the crop is also pushed to 62% horizontally so
- * the subject stays clear of the text overlay — that shift predates the
- * carousel, so only the vertical half of the configured value carries over.
+ * From `md` up the frame is far wider than the source photographs, so
+ * `object-fit: cover` discards a band of image height and the slide's
+ * `objectPosition` decides which band.
  *
- * CSS resolves a lone `top`/`bottom` as the vertical axis and a lone
- * percentage or `left`/`right` as the horizontal one; this mirrors that.
+ * Below `md` the image sits above the text in a square, which shows the
+ * photograph's full height and crops only its width. The slide photographs put
+ * the model on the right (the empty left is where desktop text goes), so the
+ * horizontal crop defaults to 92%; a horizontal value configured on the slide
+ * wins. CSS resolves a lone `top`/`bottom`/`center` as the vertical axis and a
+ * lone percentage or `left`/`right` as the horizontal one; this mirrors that.
  */
-function mobilePosition(value: string): string {
+function heroPositions(value: string): { mobile: string; desktop: string } {
   const parts = value.trim().split(/\s+/);
-  if (parts.length > 1) return `62% ${parts[1]}`;
-  const only = (parts[0] ?? "").toLowerCase();
-  return `62% ${only === "top" || only === "bottom" || only === "center" ? only : "center"}`;
+  const first = (parts[0] ?? "").toLowerCase();
+  const hasHorizontal = parts.length > 1 || /^(left|right|-?\d+(\.\d+)?(%|px))$/.test(first);
+  const horizontal = hasHorizontal ? first : "92%";
+  // A lone vertical keyword keeps its meaning on desktop; the horizontal it
+  // leaves unset only matters where the frame is narrower than the photo
+  // (below ~1150px), and there it should favour the subject's side too.
+  const desktop = hasHorizontal ? value : `${horizontal} ${first || "center"}`;
+  return { mobile: `${horizontal} center`, desktop };
 }
 
 /**
@@ -153,11 +163,11 @@ export function HeroCarousel() {
               return (
                 <div
                   key={`${slide.id}-${i}`}
-                  className={`relative w-full shrink-0 ${FRAME_HEIGHT}`}
+                  className={`relative flex w-full shrink-0 flex-col md:block ${FRAME_HEIGHT}`}
                   aria-hidden={i !== index}
                 >
-                  {/* Background image — shifted right on mobile so text sits on
-                      the plain wall; the crop's focal point is per-slide. */}
+                  {/* Background image from md up; above the text on phones, so
+                      the copy never covers the model. Focal point is per-slide. */}
                   <img
                     // Only the slide in the initial viewport is fetched with the
                     // page; the rest get their `src` once slide 1 has loaded, so
@@ -189,19 +199,21 @@ export function HeroCarousel() {
                       : {})}
                     style={
                       {
-                        "--hero-pos": slide.objectPosition,
-                        "--hero-pos-mobile": mobilePosition(slide.objectPosition),
+                        "--hero-pos": heroPositions(slide.objectPosition).desktop,
+                        "--hero-pos-mobile": heroPositions(slide.objectPosition).mobile,
                       } as React.CSSProperties
                     }
-                    className="absolute inset-0 size-full object-cover [object-position:var(--hero-pos-mobile)] md:[object-position:var(--hero-pos)]"
+                    // md (tablet) frames are narrower than the photo, so they keep
+                    // the subject-side horizontal crop; lg up uses the slide's own.
+                    className="relative aspect-square w-full object-cover [object-position:var(--hero-pos-mobile)] md:absolute md:inset-0 md:aspect-auto md:size-full lg:[object-position:var(--hero-pos)]"
                   />
 
-                  {/* Subtle left-side gradient for text legibility */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-secondary/85 via-secondary/40 to-transparent md:from-secondary/70 md:via-secondary/25 md:to-transparent" />
+                  {/* Subtle left-side gradient for text legibility (overlay only) */}
+                  <div className="absolute inset-0 hidden md:block bg-gradient-to-r md:from-secondary/70 md:via-secondary/25 md:to-transparent" />
 
-                  {/* Text overlay */}
+                  {/* Text: below the image on phones, overlaid from md up */}
                   <div
-                    className={`relative z-10 flex flex-col justify-center h-full ${FRAME_HEIGHT} px-8 md:px-14 lg:px-20 py-16 md:py-0 max-w-xl`}
+                    className={`relative z-10 flex flex-1 flex-col md:justify-center md:h-full ${FRAME_HEIGHT} bg-background/70 md:bg-transparent px-6 sm:px-8 md:px-14 lg:px-20 pt-7 pb-14 md:py-0 max-w-none md:max-w-xl`}
                   >
                     <p
                       style={
@@ -252,7 +264,7 @@ export function HeroCarousel() {
           </div>
 
           {/* Carousel dots — one per slide, the active one filled. */}
-          <div className="absolute bottom-5 left-8 md:left-14 lg:left-20 z-10 flex items-center gap-2">
+          <div className="absolute bottom-5 left-6 sm:left-8 md:left-14 lg:left-20 z-10 flex items-center gap-2">
             {slides.map((slide, i) => (
               <button
                 key={slide.id}

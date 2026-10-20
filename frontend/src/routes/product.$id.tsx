@@ -89,13 +89,18 @@ function ProductPage() {
       </div>
 
       <section className="container-luxe grid md:grid-cols-2 gap-12 py-12">
-        <div className="flex gap-4">
-          <div className="hidden md:flex flex-col gap-3 w-20 shrink-0">
+        {/* Thumbnails: a column left of the image from md up; a row under it on
+            phones (only when there is more than one image to switch to). */}
+        <div className="flex flex-col-reverse gap-4 md:flex-row">
+          <div
+            className={`${product.images.length > 1 ? "flex" : "hidden md:flex"} gap-3 overflow-x-auto p-0.5 md:flex-col md:w-20 md:shrink-0 md:overflow-visible md:p-0`}
+          >
             {product.images.map((img, i) => (
               <button
                 key={i}
                 onClick={() => setActiveImg(i)}
-                className={`aspect-square overflow-hidden rounded ${activeImg === i ? "ring-2 ring-primary" : "opacity-70"}`}
+                aria-label={`Show image ${i + 1}`}
+                className={`aspect-square w-16 shrink-0 overflow-hidden rounded md:w-auto ${activeImg === i ? "ring-2 ring-primary" : "opacity-70"}`}
               >
                 <ResponsiveImage
                   src={img}
@@ -112,7 +117,7 @@ function ProductPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.4 }}
-            className="flex-1 aspect-[4/5] overflow-hidden rounded-lg bg-secondary"
+            className="flex-1 w-full aspect-[4/5] overflow-hidden rounded-lg bg-secondary"
           >
             <ResponsiveImage
               src={product.images[activeImg]}
@@ -243,12 +248,14 @@ function ProductPage() {
 
       <section className="container-luxe pb-16">
         <Tabs defaultValue="description">
-          <TabsList className="w-full justify-start border-b border-border bg-transparent rounded-none h-auto p-0 gap-8">
+          {/* The four labels are wider than a phone, so the row scrolls within
+              itself instead of widening the page. */}
+          <TabsList className="w-full justify-start overflow-x-auto overflow-y-hidden [scrollbar-width:none] border-b border-border bg-transparent rounded-none h-auto p-0 gap-6 md:gap-8">
             {["description", "size", "details", "shipping"].map((k) => (
               <TabsTrigger
                 key={k}
                 value={k}
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary bg-transparent pb-3 text-xs uppercase tracking-[0.2em]"
+                className="shrink-0 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary bg-transparent pb-3 text-xs uppercase tracking-[0.2em]"
               >
                 {k === "size" ? "Size Guide" : k === "shipping" ? "Shipping & Returns" : k}
               </TabsTrigger>

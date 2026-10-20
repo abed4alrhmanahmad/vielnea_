@@ -61,7 +61,7 @@ function HeroSlidesPage() {
         }
       />
       <Card>
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs uppercase tracking-widest text-muted-foreground border-b border-border">

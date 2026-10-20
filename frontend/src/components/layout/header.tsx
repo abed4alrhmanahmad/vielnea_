@@ -67,7 +67,7 @@ export function Header() {
         <div className="flex items-center gap-4">
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild>
-              <button aria-label="Open menu" className="md:hidden text-primary p-2 -ml-2">
+              <button aria-label="Open menu" className="lg:hidden text-primary p-2 -ml-2">
                 <Menu className="size-5" />
               </button>
             </SheetTrigger>
@@ -149,7 +149,9 @@ export function Header() {
           <Logo imgClassName="h-9 md:h-10 translate-y-[6.4%]" />
         </div>
 
-        <nav className="hidden md:flex items-center gap-7">
+        {/* Full nav from lg: at md widths the five labels wrap onto two lines,
+            so tablets use the menu sheet like phones. */}
+        <nav className="hidden lg:flex items-center gap-7">
           {nav.map((n, i) => {
             const active = pathname === n.to && !n.search;
             return (
