@@ -14,7 +14,10 @@ Hosting expects. Local development is unchanged; see the main README.
 
 ## Requirements
 
-- **Node.js 22.12 or newer** (22 LTS or 24). The storefront's build tools require it.
+- **Node.js 22.12 to 24.x.** The storefront's build tools need at least 22.12.
+  Node 25+ ships npm 12, whose stricter `npm ci` rejects the frontend lockfile,
+  so `engines` caps the range. Hosts such as Render resolve an open-ended range
+  to the newest Node release.
 - **npm**, using the committed lockfiles (`package-lock.json` at the root and in each app).
 - Outbound access to Supabase: HTTPS (443) for Storage and PostgreSQL (5432) for the database.
 
