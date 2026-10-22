@@ -114,14 +114,14 @@ export const cartService = {
 
     const stock = await availableStock(product, input.size);
     if (stock <= 0) {
-      throw new BadRequestError(`${product.title} (${input.size}) is out of stock`);
+      throw new BadRequestError(`${product.title} in size ${input.size} is sold out`);
     }
 
     const existing = await cartRepository.findItem(userId, product.id, input.size);
     const alreadyInCart = existing?.quantity ?? 0;
     if (alreadyInCart >= stock) {
       throw new BadRequestError(
-        `Only ${stock} left in size ${input.size} — you already have ${alreadyInCart} in your bag`,
+        `You already have all available pieces of ${product.title} in size ${input.size} in your bag`,
       );
     }
 
@@ -146,7 +146,7 @@ export const cartService = {
     const stock = await availableStock(product, input.size);
     if (input.quantity > stock) {
       throw new BadRequestError(
-        `Only ${stock} left in size ${input.size} for ${product.title}`,
+        `That quantity of ${product.title} in size ${input.size} is not available — please choose fewer`,
       );
     }
 

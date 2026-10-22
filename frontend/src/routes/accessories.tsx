@@ -258,7 +258,7 @@ function AccessoriesPage() {
 }
 
 function AccessoryCard({ accessory, onOpen }: { accessory: ApiAccessory; onOpen: () => void }) {
-  const soldOut = accessory.stock === 0;
+  const soldOut = accessory.stock <= 0;
 
   return (
     <motion.article whileHover={{ y: -4 }} transition={{ duration: 0.3 }} className="group">
@@ -287,7 +287,7 @@ function AccessoryCard({ accessory, onOpen }: { accessory: ApiAccessory; onOpen:
             </span>
           )}
           {soldOut && (
-            <span className="bg-background/90 text-foreground text-[10px] uppercase tracking-widest px-2 py-1">
+            <span className="order-first bg-foreground text-background text-[10px] font-medium uppercase tracking-widest px-2 py-1">
               Sold out
             </span>
           )}
@@ -363,7 +363,8 @@ function AccessoryDialog({
             </span>
           )}
           <span className="ml-auto text-xs uppercase tracking-[0.2em] text-muted-foreground">
-            {accessory.stock > 0 ? `${accessory.stock} available` : "Sold out"}
+            {/* Availability only — the exact count stays in the admin dashboard. */}
+            {accessory.stock > 0 ? "Available" : "Sold out"}
           </span>
         </div>
 

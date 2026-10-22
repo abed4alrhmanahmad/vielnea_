@@ -6,6 +6,7 @@ import { Shell } from "@/components/layout/shell";
 import { ProductCard } from "@/components/shop/product-card";
 import { ProductReviews } from "@/components/shop/product-reviews";
 import { IMAGE_SIZES, ResponsiveImage } from "@/components/responsive-image";
+import { isSizeAvailable, isSoldOut } from "@/lib/availability";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -13,6 +14,13 @@ import { useStore } from "@/contexts/store-context";
 import { productDetailOptions, useRelatedProducts } from "@/services/products";
 import type { StoreProduct } from "@/lib/api/mappers";
 import { ApiError } from "@/lib/api/client";
+
+/**
+ * Per-click cap for the quantity stepper. Fixed rather than the stock level, so
+ * the stepper never reveals how many are left; the server rejects quantities
+ * above real stock with a message that does not state the count.
+ */
+const MAX_QTY = 10;
 
 export const Route = createFileRoute("/product/$id")({
   // Loaded server-side so the product's title/description reach the SEO tags.
@@ -58,17 +66,20 @@ function ProductPage() {
   const { product } = Route.useLoaderData() as { product: StoreProduct };
   const { addToCart, toggleWishlist, isWishlisted } = useStore();
   const [activeImg, setActiveImg] = useState(0);
-  const [size, setSize] = useState<string>(product.sizes[0] ?? "One Size");
+  // Start on the first size that can be bought; a fully sold-out product keeps its first.
+  const [size, setSize] = useState<string>(
+    product.sizes.find((s) => isSizeAvailable(product, s)) ?? product.sizes[0] ?? "One Size",
+  );
   const [qty, setQty] = useState(1);
   const relatedQuery = useRelatedProducts(product.slug);
   const related = relatedQuery.data ?? [];
   const finalPrice = product.finalPrice;
   const wished = isWishlisted(product.id);
 
-  // Per-size availability comes from product_sizes; falls back to total stock.
-  const sizeStockFor = (candidate: string): number => product.sizeStock[candidate] ?? product.stock;
-  const selectedStock = sizeStockFor(size);
-  const outOfStock = selectedStock <= 0;
+  // Availability only — exact stock is never shown to customers. The server
+  // re-checks real quantities on add-to-cart, quantity change and checkout.
+  const soldOut = isSoldOut(product);
+  const outOfStock = soldOut || !isSizeAvailable(product, size);
   // The API returns the label with the product; no local category table needed.
   const categoryLabel = product.categoryLabel || product.category;
 
@@ -117,7 +128,7 @@ function ProductPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.4 }}
-            className="flex-1 w-full aspect-[4/5] overflow-hidden rounded-lg bg-secondary"
+            className="relative flex-1 w-full aspect-[4/5] overflow-hidden rounded-lg bg-secondary"
           >
             <ResponsiveImage
               src={product.images[activeImg]}
@@ -128,6 +139,11 @@ function ProductPage() {
               fetchPriority="high"
               className="size-full object-cover"
             />
+            {soldOut && (
+              <span className="absolute top-4 left-4 bg-foreground text-background text-xs font-medium uppercase tracking-widest px-3 py-1.5">
+                Sold out
+              </span>
+            )}
           </motion.div>
         </div>
 
@@ -157,7 +173,7 @@ function ProductPage() {
             <p className="text-xs uppercase tracking-[0.25em] mb-3">Size</p>
             <div className="flex gap-2 flex-wrap">
               {product.sizes.map((s) => {
-                const soldOut = sizeStockFor(s) <= 0;
+                const sizeSoldOut = !isSizeAvailable(product, s);
                 return (
                   <button
                     key={s}
@@ -165,27 +181,33 @@ function ProductPage() {
                       setSize(s);
                       setQty(1);
                     }}
-                    disabled={soldOut}
-                    title={soldOut ? "Out of stock" : undefined}
-                    className={`min-w-12 h-10 px-3 border text-sm ${
-                      size === s
+                    disabled={sizeSoldOut}
+                    aria-label={sizeSoldOut ? `${s} — sold out` : s}
+                    title={sizeSoldOut ? "Sold out" : undefined}
+                    className={`relative overflow-hidden min-w-12 h-10 px-3 border text-sm ${
+                      size === s && !sizeSoldOut
                         ? "border-primary bg-primary text-primary-foreground"
                         : "border-border text-foreground hover:border-primary"
-                    } ${soldOut ? "opacity-40 line-through cursor-not-allowed hover:border-border" : ""}`}
+                    } ${sizeSoldOut ? "opacity-40 line-through cursor-not-allowed hover:border-border" : ""}`}
                   >
                     {s}
+                    {/* Diagonal cross-out for sold-out sizes */}
+                    {sizeSoldOut && (
+                      <span
+                        aria-hidden
+                        className="pointer-events-none absolute left-1/2 top-1/2 h-px w-[140%] -translate-x-1/2 -translate-y-1/2 -rotate-[20deg] bg-foreground/60"
+                      />
+                    )}
                   </button>
                 );
               })}
             </div>
-            {outOfStock ? (
-              <p className="text-xs text-destructive mt-3">
-                Size {size} is currently out of stock.
-              </p>
+            {soldOut ? (
+              <p className="text-xs text-destructive mt-3">This piece is sold out.</p>
             ) : (
-              selectedStock <= 5 && (
-                <p className="text-xs text-primary mt-3">
-                  Only {selectedStock} left in size {size}.
+              outOfStock && (
+                <p className="text-xs text-destructive mt-3">
+                  Size {size} is sold out — please choose another size.
                 </p>
               )
             )}
@@ -203,8 +225,8 @@ function ProductPage() {
               </button>
               <span className="w-10 text-center text-sm">{qty}</span>
               <button
-                onClick={() => setQty((n) => Math.min(Math.max(1, selectedStock), n + 1))}
-                disabled={qty >= selectedStock}
+                onClick={() => setQty((n) => Math.min(MAX_QTY, n + 1))}
+                disabled={outOfStock || qty >= MAX_QTY}
                 className="p-3 text-primary disabled:opacity-40"
                 aria-label="Increase"
               >
@@ -220,7 +242,7 @@ function ProductPage() {
               className="flex-1 uppercase tracking-[0.2em] text-xs h-12"
               onClick={() => addToCart(product.id, size, qty)}
             >
-              {outOfStock ? "Out of Stock" : "Add to Cart"}
+              {soldOut ? "Sold Out" : outOfStock ? "Size Sold Out" : "Add to Cart"}
             </Button>
             <Button
               size="lg"
@@ -301,7 +323,6 @@ function ProductPage() {
               <li>Made from natural fibres, ethically sourced</li>
               <li>Dry clean recommended for longevity</li>
               <li>Designed in Paris, crafted in Portugal</li>
-              <li>{product.stock} pieces available in this run</li>
             </ul>
           </TabsContent>
           <TabsContent

@@ -85,11 +85,11 @@ export const orderService = {
         const available = row.size_stock === null ? row.product_stock : Math.min(row.size_stock, row.product_stock);
 
         if (available <= 0) {
-          throw new BadRequestError(`${row.title} (${row.size}) is out of stock`);
+          throw new BadRequestError(`${row.title} in size ${row.size} is now sold out — please remove it from your bag`);
         }
         if (row.quantity > available) {
           throw new BadRequestError(
-            `Only ${available} left of ${row.title} in size ${row.size} — please update your bag`,
+            `${row.title} in size ${row.size} is no longer available in the quantity in your bag — please update your bag`,
           );
         }
 

@@ -4,11 +4,14 @@ import { motion } from "framer-motion";
 import type { Product } from "@/data/products";
 import { useStore } from "@/contexts/store-context";
 import { IMAGE_SIZES, ResponsiveImage } from "@/components/responsive-image";
+import { isSoldOut } from "@/lib/availability";
 
 export function ProductCard({ product }: { product: Product }) {
   const { toggleWishlist, isWishlisted } = useStore();
   const wished = isWishlisted(product.id);
   const finalPrice = product.price * (1 - product.discount / 100);
+  // Sold-out products stay listed; the badge says so, the product page blocks purchase.
+  const soldOut = isSoldOut(product);
 
   return (
     <motion.article whileHover={{ y: -4 }} transition={{ duration: 0.3 }} className="group">
@@ -35,6 +38,11 @@ export function ProductCard({ product }: { product: Product }) {
           </span>
         )}
         <div className="absolute top-3 left-3 flex flex-col gap-1">
+          {soldOut && (
+            <span className="bg-foreground text-background text-[10px] font-medium uppercase tracking-widest px-2 py-1">
+              Sold out
+            </span>
+          )}
           {product.isNew && (
             <span className="bg-primary text-primary-foreground text-[10px] uppercase tracking-widest px-2 py-1">
               New
