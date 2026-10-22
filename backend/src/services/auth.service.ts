@@ -1,7 +1,10 @@
 import { userRepository } from "../repositories/user.repository.js";
 import { hashPassword, verifyPassword } from "../utils/password.js";
 import { signToken } from "../utils/jwt.js";
-import { ConflictError, UnauthorizedError } from "../lib/errors.js";
+import { BadRequestError, ConflictError, UnauthorizedError } from "../lib/errors.js";
+
+/** Admin passwords: the same minimum the server enforces for ADMIN_PASSWORD. */
+const ADMIN_MIN_PASSWORD_LENGTH = 8;
 import type { PublicUser } from "../types/models.js";
 
 export interface AuthResult {
@@ -82,7 +85,46 @@ export const authService = {
     const ok = await verifyPassword(currentPassword, found.passwordHash);
     if (!ok) throw new UnauthorizedError("Your current password is incorrect");
 
+    // Administrator accounts get a stricter rule than the shared schema's.
+    if (found.user.role === "admin") {
+      if (newPassword.length < ADMIN_MIN_PASSWORD_LENGTH) {
+        throw new BadRequestError(
+          `Admin passwords must be at least ${ADMIN_MIN_PASSWORD_LENGTH} characters`,
+        );
+      }
+      if (newPassword === currentPassword) {
+        throw new BadRequestError("Choose a password different from your current one");
+      }
+    }
+
     await userRepository.updatePasswordHash(userId, await hashPassword(newPassword));
     return { message: "Password updated" };
+  },
+
+  /**
+   * Changes the caller's own sign-in email after re-checking their password.
+   *
+   * The id comes from the verified token, so only the signed-in account can be
+   * changed. This auth system has no email-verification step, so the change
+   * applies immediately; the email is part of the token, so a fresh one is
+   * issued.
+   */
+  async changeEmail(userId: string, email: string, currentPassword: string): Promise<AuthResult> {
+    const found = await userRepository.findByIdWithHash(userId);
+    if (!found) throw new UnauthorizedError("Your account no longer exists");
+
+    const ok = await verifyPassword(currentPassword, found.passwordHash);
+    if (!ok) throw new UnauthorizedError("Your current password is incorrect");
+
+    if (found.user.email.toLowerCase() === email.toLowerCase()) {
+      throw new BadRequestError("That is already your email address");
+    }
+    if (await userRepository.emailTakenByAnother(email, userId)) {
+      throw new ConflictError("An account with that email already exists");
+    }
+
+    const user = await userRepository.updateProfile(userId, { name: found.user.name, email });
+    if (!user) throw new UnauthorizedError("Your account no longer exists");
+    return issue(user);
   },
 };

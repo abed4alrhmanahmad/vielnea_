@@ -45,6 +45,7 @@ router.post("/auth/login", authLimiter, authController.login);
 router.get("/auth/me", authenticate, authController.me);
 router.put("/auth/me", authenticate, writeLimiter, authController.updateMe);
 router.put("/auth/password", authenticate, authLimiter, authController.changePassword);
+router.put("/auth/email", authenticate, authLimiter, authController.changeEmail);
 router.post("/auth/logout", authController.logout);
 
 // ---------------------------------------------------------------------------

@@ -2,6 +2,7 @@ import { asyncHandler, sendData } from "../lib/http.js";
 import { authService } from "../services/auth.service.js";
 import { requireUser } from "../middleware/auth.js";
 import {
+  changeEmailSchema,
   changePasswordSchema,
   loginSchema,
   registerSchema,
@@ -61,6 +62,15 @@ export const authController = {
     const { sub } = requireUser(req);
     const { currentPassword, newPassword } = changePasswordSchema.parse(req.body);
     sendData(res, await authService.changePassword(sub, currentPassword, newPassword));
+  }),
+
+  changeEmail: asyncHandler(async (req, res) => {
+    const { sub } = requireUser(req);
+    const { email, currentPassword } = changeEmailSchema.parse(req.body);
+    const result = await authService.changeEmail(sub, email, currentPassword);
+    // The email is inside the token, so re-issue it and refresh the cookie.
+    setAuthCookie(res, result.token);
+    sendData(res, result);
   }),
 
   logout: asyncHandler(async (_req, res) => {

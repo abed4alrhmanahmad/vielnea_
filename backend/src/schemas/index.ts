@@ -45,6 +45,12 @@ export const updateProfileSchema = z.object({
   email: emailSchema,
 });
 
+/** Changing the sign-in email re-checks the current password first. */
+export const changeEmailSchema = z.object({
+  email: emailSchema,
+  currentPassword: z.string().min(1, "Enter your current password").max(200),
+});
+
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, "Enter your current password").max(200),
   newPassword: z

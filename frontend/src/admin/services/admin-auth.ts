@@ -71,6 +71,42 @@ export const adminAuth = {
     }
   },
 
+  /**
+   * Changes the signed-in admin's sign-in email. The server re-checks the
+   * current password, rejects duplicates, and returns a fresh token because
+   * the email is part of it; the session stays signed in.
+   */
+  async changeEmail(
+    email: string,
+    currentPassword: string,
+  ): Promise<{ ok: boolean; email?: string; error?: string }> {
+    try {
+      const result = await apiClient.put<ApiAuthResult>("/auth/email", { email, currentPassword });
+      setToken(result.token);
+      setJSON<AdminSession>(KEY, {
+        email: result.user.email,
+        name: result.user.name,
+        loggedInAt: this.current()?.loggedInAt ?? Date.now(),
+      });
+      return { ok: true, email: result.user.email };
+    } catch (error) {
+      return { ok: false, error: errorMessage(error, "Could not change the email") };
+    }
+  },
+
+  /** Changes the signed-in admin's password; the server verifies the current one. */
+  async changePassword(
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    try {
+      await apiClient.put("/auth/password", { currentPassword, newPassword });
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error: errorMessage(error, "Could not change the password") };
+    }
+  },
+
   logout(): void {
     void apiClient.post("/auth/logout").catch(() => {
       // Clearing local state matters more than the server acknowledging.

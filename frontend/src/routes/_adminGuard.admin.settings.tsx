@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { AdminAccountCards } from "@/admin/components/admin-account-cards";
 import {
   useSettings,
   settingsService,
@@ -139,6 +140,7 @@ function AdminSettingsPage() {
             <F label="Email" k="adminEmail" />
           </CardContent>
         </Card>
+        <AdminAccountCards />
       </div>
     </div>
   );

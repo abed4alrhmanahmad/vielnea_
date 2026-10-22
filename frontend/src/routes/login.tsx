@@ -46,7 +46,7 @@ function LoginPage() {
 
   const form = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
-    defaultValues: { email: "demo@vielinea.com", password: "123456" },
+    defaultValues: { email: "", password: "" },
   });
 
   return (
@@ -57,8 +57,6 @@ function LoginPage() {
           <p className="mt-4 text-muted-foreground leading-relaxed">
             Sign in to see your saved pieces, orders and private previews.
           </p>
-          <p className="mt-8 text-xs uppercase tracking-[0.2em] text-primary">Demo access</p>
-          <p className="text-sm text-muted-foreground mt-2">demo@vielinea.com · 123456</p>
         </div>
         <div className="bg-card border border-border p-8 rounded">
           <h2 className="font-display text-2xl mb-6">Sign In</h2>
