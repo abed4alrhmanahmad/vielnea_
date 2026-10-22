@@ -4,6 +4,7 @@ import { orderRepository } from "../repositories/order.repository.js";
 import { BadRequestError, NotFoundError } from "../lib/errors.js";
 import { toMoney } from "../utils/slug.js";
 import { cardPaymentProvider } from "./payment/index.js";
+import { checkoutPaymentMethods } from "./payment/methods.js";
 import { shippingFor } from "./cart.service.js";
 import { sendNewOrderNotification } from "./email/order-notification.js";
 import type { Order } from "../types/models.js";
@@ -47,6 +48,22 @@ export const orderService = {
    * inventory is taken from the request body.
    */
   async checkout(userId: string, input: CheckoutInput): Promise<Order> {
+    // 0. The chosen payment method must be one checkout currently offers: the
+    //    admin can switch methods off, and card also needs a real processor.
+    //    Checked before anything is locked or written.
+    const methods = await checkoutPaymentMethods();
+    if (!methods.card && !methods.cod) {
+      throw new BadRequestError(
+        "Online checkout is temporarily unavailable. Please contact us to place your order.",
+      );
+    }
+    if (input.paymentMethod === "card" && !methods.card) {
+      throw new BadRequestError("Card payment is not available. Please choose Cash on Delivery.");
+    }
+    if (input.paymentMethod === "cod" && !methods.cod) {
+      throw new BadRequestError("Cash on Delivery is not available. Please pay by card.");
+    }
+
     const order = await withTransaction(async (client) => {
       // 1. Read the cart, joining live product data and locking those rows.
       const { rows } = await client.query<LockedCartRow>(

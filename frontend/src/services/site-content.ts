@@ -48,6 +48,11 @@ export interface SiteSettings {
     currency: string;
     standardShipping: number;
   };
+  /**
+   * Payment methods checkout may offer, decided by the server from the admin
+   * switches and whether a real card processor is configured.
+   */
+  checkoutPayments: { card: boolean; cod: boolean };
 }
 
 export interface SiteSection {
@@ -104,6 +109,7 @@ const FALLBACK: SiteSettings = {
     currency: "USD",
     standardShipping: 15,
   },
+  checkoutPayments: { card: true, cod: true },
 };
 
 export const siteKeys = {
@@ -123,6 +129,7 @@ export async function fetchSiteSettings(): Promise<SiteSettings> {
     contact: { ...FALLBACK.contact, ...(data.contact ?? {}) },
     newsletter: { ...FALLBACK.newsletter, ...(data.newsletter ?? {}) },
     store: { ...FALLBACK.store, ...(data.store ?? {}) },
+    checkoutPayments: { ...FALLBACK.checkoutPayments, ...(data.checkoutPayments ?? {}) },
   };
 }
 

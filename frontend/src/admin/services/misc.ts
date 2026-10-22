@@ -237,6 +237,8 @@ interface ApiSettingsPayload {
   store: Omit<StoreSettings, "adminName" | "adminEmail">;
   social?: { instagram?: string; facebook?: string; twitter?: string };
   contact?: { email?: string; phone?: string; address?: string };
+  payment_methods?: { cardEnabled?: boolean; codEnabled?: boolean };
+  cardPayments?: { ready?: boolean; provider?: string };
 }
 
 const SETTINGS_FALLBACK: StoreSettings = {
@@ -310,6 +312,49 @@ export const settingsService = {
     );
   },
   key: "admin-settings",
+};
+
+// ---------- Payment methods ----------
+// The checkout switches, stored in site_content under "payment_methods" via
+// the admin settings endpoint; the server enforces them at checkout.
+export interface PaymentMethodSettings {
+  cardEnabled: boolean;
+  codEnabled: boolean;
+  /** False when no real card processor is configured: card stays off at checkout. */
+  cardReady: boolean;
+  loaded: boolean;
+}
+
+const PAYMENT_METHODS_FALLBACK: PaymentMethodSettings = {
+  cardEnabled: true,
+  codEnabled: true,
+  cardReady: false,
+  loaded: false,
+};
+
+export function usePaymentMethodSettings(): PaymentMethodSettings {
+  return useAdminRecord<ApiSettingsPayload, PaymentMethodSettings>(
+    ["admin", "settings"],
+    "/admin/site/settings",
+    (api) => ({
+      // Only an explicit false switches a method off, matching the server.
+      cardEnabled: api.payment_methods?.cardEnabled !== false,
+      codEnabled: api.payment_methods?.codEnabled !== false,
+      cardReady: api.cardPayments?.ready === true,
+      loaded: true,
+    }),
+    PAYMENT_METHODS_FALLBACK,
+  );
+}
+
+export const paymentMethodsService = {
+  save(next: { cardEnabled: boolean; codEnabled: boolean }): void {
+    runAdminMutation(() => apiClient.put("/admin/site/settings/payment_methods", { value: next }), {
+      invalidate: [["admin", "settings"], ["site"]],
+      success: "Payment methods updated",
+      failure: "Could not update payment methods",
+    });
+  },
 };
 
 export function useSettings(): StoreSettings {

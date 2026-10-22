@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -19,6 +20,7 @@ import { useCreateOrder } from "@/services/orders";
 import { errorMessage } from "@/lib/api/client";
 import type { ApiOrder } from "@/lib/api/types";
 import { paymentMethodLabel, paymentStatusLabel } from "@/lib/payment";
+import { siteSettingsOptions } from "@/services/site-content";
 import {
   cvcLengthFor,
   digitsOf,
@@ -133,6 +135,25 @@ export function CheckoutDialog({
   });
 
   const paymentMethod = form.watch("paymentMethod");
+
+  // Methods come from the admin Payment Methods switches (and, for card,
+  // whether a real processor is configured). Refetched on open so a change
+  // made while the shop was open applies; the server enforces it regardless.
+  const settingsQuery = useQuery(siteSettingsOptions());
+  const methods = settingsQuery.data?.checkoutPayments ?? { card: true, cod: true };
+  const paymentOptions = PAYMENT_OPTIONS.filter((option) => methods[option.value]);
+  const noPaymentMethod = paymentOptions.length === 0;
+  const { refetch } = settingsQuery;
+  useEffect(() => {
+    if (open) void refetch();
+  }, [open, refetch]);
+  // Keep the selection on an offered method when the offer changes.
+  useEffect(() => {
+    const first = paymentOptions[0];
+    if (first && !paymentOptions.some((option) => option.value === paymentMethod)) {
+      form.setValue("paymentMethod", first.value);
+    }
+  }, [paymentOptions, paymentMethod, form]);
   const cardNumberValue = form.watch("cardNumber") ?? "";
 
   /**
@@ -314,8 +335,16 @@ export function CheckoutDialog({
 
               <div>
                 <Label>Payment method</Label>
-                <div className="mt-1 grid sm:grid-cols-2 gap-3">
-                  {PAYMENT_OPTIONS.map((option) => {
+                {noPaymentMethod && (
+                  <p className="mt-1 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+                    Online checkout is temporarily unavailable. Please contact us to place your
+                    order.
+                  </p>
+                )}
+                <div
+                  className={`mt-1 grid gap-3 ${paymentOptions.length > 1 ? "sm:grid-cols-2" : ""}`}
+                >
+                  {paymentOptions.map((option) => {
                     const Icon = option.icon;
                     const selected = paymentMethod === option.value;
                     return (
@@ -346,7 +375,7 @@ export function CheckoutDialog({
                     );
                   })}
                 </div>
-                {paymentMethod === "cod" && (
+                {paymentMethod === "cod" && methods.cod && (
                   <p className="text-xs text-muted-foreground mt-2">
                     No card details are taken. Your order is placed now and payment is collected on
                     delivery.
@@ -358,7 +387,7 @@ export function CheckoutDialog({
                   Delivery unmounts them, so nothing card-related is rendered,
                   read or sent. The number and CVV are tokenized in the browser
                   and never travel to the API. */}
-              {paymentMethod === "card" && (
+              {paymentMethod === "card" && methods.card && (
                 <div className="space-y-4 rounded-md border border-input p-4">
                   <div>
                     <Label htmlFor="cardholderName">Cardholder name</Label>
@@ -456,7 +485,7 @@ export function CheckoutDialog({
 
               <Button
                 type="submit"
-                disabled={createOrder.isPending}
+                disabled={createOrder.isPending || noPaymentMethod}
                 className="w-full h-12 uppercase tracking-[0.2em] text-xs"
               >
                 {createOrder.isPending ? "Placing order…" : "Place Order"}

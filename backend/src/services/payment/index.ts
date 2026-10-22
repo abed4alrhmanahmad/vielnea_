@@ -40,6 +40,18 @@ function resolve(): CardPaymentProvider {
   return unconfiguredCardProvider;
 }
 
+/**
+ * Whether card payment can actually be taken. `unconfigured` never can, and
+ * `sandbox` only outside production (it moves no money, so a live storefront
+ * must not offer it as if it were real). Checkout hides and rejects the card
+ * method whenever this is false, whatever the admin toggle says.
+ */
+export function cardPaymentsReady(): boolean {
+  if (env.PAYMENT_PROVIDER === "unconfigured") return false;
+  if (env.PAYMENT_PROVIDER === "sandbox") return !env.isProduction;
+  return true;
+}
+
 let cached: CardPaymentProvider | null = null;
 
 export function cardPaymentProvider(): CardPaymentProvider {

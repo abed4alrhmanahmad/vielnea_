@@ -1,6 +1,14 @@
 import { z } from "zod";
 import { asyncHandler, sendData } from "../lib/http.js";
 import { cmsRepository } from "../repositories/cms.repository.js";
+import { env } from "../config/env.js";
+import { cardPaymentsReady } from "../services/payment/index.js";
+import {
+  PAYMENT_METHODS_SETTING_KEY,
+  availableMethods,
+  paymentMethodTogglesSchema,
+  readPaymentToggles,
+} from "../services/payment/methods.js";
 import { BadRequestError, NotFoundError } from "../lib/errors.js";
 import { isUuid } from "../utils/slug.js";
 import { invalidateShippingCache } from "../services/cart.service.js";
@@ -116,7 +124,12 @@ export const cmsController = {
         cmsRepository.allSettings(),
         cmsRepository.storeSettings(),
       ]);
-      return { ...settings, store };
+      // Payment methods checkout may offer, resolved server-side (admin toggles
+      // plus whether a real card processor is configured).
+      const checkoutPayments = availableMethods(
+        readPaymentToggles(settings[PAYMENT_METHODS_SETTING_KEY]),
+      );
+      return { ...settings, store, checkoutPayments };
     });
     sendData(res, payload);
   }),
@@ -148,12 +161,19 @@ export const cmsController = {
       cmsRepository.allSettings(),
       cmsRepository.storeSettings(),
     ]);
-    sendData(res, { ...settings, store });
+    sendData(res, {
+      ...settings,
+      store,
+      // Lets the Payment Methods switches explain when card cannot be offered.
+      cardPayments: { ready: cardPaymentsReady(), provider: env.PAYMENT_PROVIDER },
+    });
   }),
 
   updateSetting: asyncHandler(async (req, res) => {
     const key = settingKeySchema.parse(req.params["key"]);
     const { value } = settingValueSchema.parse(req.body);
+    // Checkout reads this one, so only the exact switch shape is accepted.
+    if (key === PAYMENT_METHODS_SETTING_KEY) paymentMethodTogglesSchema.parse(value);
     const updated = await cmsRepository.setSetting(key, value);
     // Public settings are cached; drop it so the edit shows on the next request.
     invalidateCache(SETTINGS_CACHE_KEY);
