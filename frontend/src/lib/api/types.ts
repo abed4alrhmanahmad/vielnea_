@@ -310,4 +310,6 @@ export interface ProductListParams {
   bestSeller?: boolean | undefined;
   featured?: boolean | undefined;
   inStock?: boolean | undefined;
+  /** Only products with an image and a price above zero. */
+  complete?: boolean | undefined;
 }

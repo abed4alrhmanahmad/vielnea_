@@ -35,6 +35,7 @@ export async function fetchProducts(params: ProductListParams): Promise<ProductL
       page: params.page,
       limit: params.limit,
       gift: params.gift,
+      complete: params.complete,
       newArrival: params.newArrival,
       bestSeller: params.bestSeller,
       featured: params.featured,

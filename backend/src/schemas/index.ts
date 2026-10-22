@@ -64,6 +64,10 @@ export const productSortSchema = z.enum([
   "rating",
   "title_asc",
   "title_desc",
+  // Pure creation date, newest first (`newest` puts admin-flagged arrivals first).
+  "recent",
+  // Units sold on non-cancelled orders; lists only products that have sold.
+  "best_selling",
 ]);
 
 /**
@@ -94,6 +98,8 @@ export const productQuerySchema = z.object({
   bestSeller: z.coerce.boolean().optional(),
   newArrival: z.coerce.boolean().optional(),
   gift: z.coerce.boolean().optional(),
+  // Only products with at least one image and a price above zero (homepage New Arrivals).
+  complete: z.coerce.boolean().optional(),
   inStock: z.coerce.boolean().optional(),
 });
 

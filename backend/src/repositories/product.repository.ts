@@ -123,6 +123,15 @@ function mapProduct(row: ProductRow): Product {
   };
 }
 
+/**
+ * Units sold per product, by the same rule as the admin dashboard's Best
+ * Sellers (admin.repository): every order except cancelled ones.
+ */
+const UNITS_SOLD_SQL = `(SELECT COALESCE(sum(oi.quantity), 0)
+   FROM public.order_items oi
+   JOIN public.orders o ON o.id = oi.order_id AND o.status <> 'cancelled'
+   WHERE oi.product_id = p.id)`;
+
 const SORT_SQL: Record<NonNullable<ProductQuery["sort"]> | "default", string> = {
   newest: "p.is_new_arrival DESC, p.created_at DESC",
   oldest: "p.created_at ASC",
@@ -131,6 +140,8 @@ const SORT_SQL: Record<NonNullable<ProductQuery["sort"]> | "default", string> = 
   rating: "p.rating DESC, p.review_count DESC",
   title_asc: "p.title ASC",
   title_desc: "p.title DESC",
+  recent: "p.created_at DESC",
+  best_selling: `${UNITS_SOLD_SQL} DESC, p.created_at DESC`,
   default: "p.is_new_arrival DESC, p.created_at DESC",
 };
 
@@ -166,6 +177,12 @@ export const productRepository = {
     if (query.newArrival) conditions.push("p.is_new_arrival = true");
     if (query.gift) conditions.push("p.has_gift = true");
     if (query.inStock) conditions.push("p.stock > 0");
+    if (query.complete) {
+      conditions.push("EXISTS (SELECT 1 FROM public.product_images pi WHERE pi.product_id = p.id)");
+      conditions.push("(p.price * (1 - p.discount / 100.0)) > 0");
+    }
+    // A best-seller ranking lists only products that have actually sold.
+    if (query.sort === "best_selling") conditions.push(`${UNITS_SOLD_SQL} > 0`);
 
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
     const orderBy = SORT_SQL[query.sort ?? "default"];

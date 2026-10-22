@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState, type ReactNode } from "react";
 import {
   ArrowRight,
   Truck,
@@ -9,6 +10,9 @@ import {
 } from "lucide-react";
 import { Shell } from "@/components/layout/shell";
 import { ProductCard } from "@/components/shop/product-card";
+import { AccessoryCard, AccessoryDialog } from "@/components/shop/accessory-card";
+import { accessoryListOptions, useAccessories } from "@/services/accessories";
+import type { ApiAccessory } from "@/lib/api/types";
 import { HeroCarousel } from "@/components/home/hero-carousel";
 
 import { Input } from "@/components/ui/input";
@@ -111,6 +115,20 @@ function instaMarquee(count: number): { style: React.CSSProperties; copies: numb
 const HOME_PRODUCT_LIMIT = 24;
 
 /**
+ * The three catalogue rows. Each is one request to the same endpoint its
+ * catalogue page uses, so names, prices, images and stock always match:
+ * - New Arrivals: /products, newest by creation date; only complete products
+ *   (at least one image and a price above $0), so unfinished drafts stay off it.
+ * - Best Sellers: /products ranked by units sold on non-cancelled orders (the
+ *   admin dashboard's rule); only products that have actually sold.
+ * - Accessories: /accessories in that page's default (featured) order.
+ */
+const HOME_ROW_LIMIT = 4;
+const NEW_ARRIVALS_QUERY = { sort: "recent", complete: true, limit: HOME_ROW_LIMIT };
+const BEST_SELLERS_QUERY = { sort: "best_selling", limit: HOME_ROW_LIMIT };
+const HOME_ACCESSORIES_QUERY = { sort: "manual", page: 1, limit: HOME_ROW_LIMIT };
+
+/**
  * Splits a CMS href like "/shop?cat=vests" into the route and its search
  * params, so a category card can point at a standalone page (Accessories) or a
  * shop filter through the same typed <Link>. Mirrors the header's parseNavHref.
@@ -137,6 +155,9 @@ export const Route = createFileRoute("/")({
       // Product rows are server-rendered too, so section titles and product
       // names are in the initial HTML.
       context.queryClient.ensureQueryData(productListOptions({ limit: HOME_PRODUCT_LIMIT })),
+      context.queryClient.ensureQueryData(productListOptions(NEW_ARRIVALS_QUERY)),
+      context.queryClient.ensureQueryData(productListOptions(BEST_SELLERS_QUERY)),
+      context.queryClient.ensureQueryData(accessoryListOptions(HOME_ACCESSORIES_QUERY)),
       context.queryClient.ensureQueryData(categoriesOptions()),
     ]);
   },
@@ -165,6 +186,9 @@ function Home() {
   // One request backs every product row on the page.
   const catalogueQuery = useProducts({ limit: HOME_PRODUCT_LIMIT });
   const products = catalogueQuery.data?.products ?? [];
+  const newArrivals = useProducts(NEW_ARRIVALS_QUERY).data?.products ?? [];
+  const bestSellers = useProducts(BEST_SELLERS_QUERY).data?.products ?? [];
+  const homeAccessories = useAccessories(HOME_ACCESSORIES_QUERY).data?.accessories ?? [];
 
   // --- CMS-driven sections --------------------------------------------------
   const valueBar = findSection(page, "value_bar");
@@ -219,9 +243,9 @@ function Home() {
 
     switch (String(settings["source"] ?? "")) {
       case "newArrival":
-        return products.filter((p) => p.isNew).slice(0, limit);
+        return newArrivals.slice(0, limit);
       case "bestSeller":
-        return products.filter((p) => p.isBestSeller).slice(0, limit);
+        return bestSellers.slice(0, limit);
       case "gift":
         return products.filter((p) => p.hasGift).slice(0, limit);
       case "featured":
@@ -242,10 +266,16 @@ function Home() {
     .map((s) => ({
       key: s.sectionKey,
       title: s.title ?? "",
+      // "accessories" rows come from the accessories catalogue, not /products.
+      isAccessories: s.settings["source"] === "accessories",
       items: itemsForSection(s),
+      accessories:
+        s.settings["source"] === "accessories"
+          ? homeAccessories.slice(0, Number(s.settings["limit"] ?? HOME_ROW_LIMIT))
+          : [],
       linkSearch: s.settings["linkSearch"] as Record<string, string> | undefined,
     }))
-    .filter((row) => row.items.length > 0);
+    .filter((row) => (row.isAccessories ? row.accessories.length > 0 : row.items.length > 0));
   return (
     <Shell>
       {/* Hero — a carousel driven entirely by GET /hero-slides. */}
@@ -321,15 +351,17 @@ function Home() {
         </section>
       )}
 
-      {productRows.map((row) => (
-        <ProductRow
-          key={row.key}
-          title={row.title}
-          items={row.items}
-          link="/shop"
-          linkSearch={row.linkSearch}
-        />
-      ))}
+      {productRows.map((row) =>
+        row.isAccessories ? (
+          <AccessoryRow key={row.key} title={row.title} accessories={row.accessories} />
+        ) : (
+          <ProductRow key={row.key} title={row.title} link="/shop" linkSearch={row.linkSearch}>
+            {row.items.map((p) => (
+              <ProductCard key={p.id} product={p} />
+            ))}
+          </ProductRow>
+        ),
+      )}
 
       {/* Testimonials */}
       <section className="bg-secondary/50 border-y border-border">
@@ -504,14 +536,14 @@ function Home() {
 
 function ProductRow({
   title,
-  items,
   link,
   linkSearch,
+  children,
 }: {
   title: string;
-  items: StoreProduct[];
-  link: "/shop";
+  link: "/shop" | "/accessories";
   linkSearch?: Record<string, string>;
+  children: ReactNode;
 }) {
   return (
     <section className="container-luxe py-16">
@@ -525,11 +557,22 @@ function ProductRow({
           View All <ArrowRight className="size-3" />
         </Link>
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-        {items.map((p) => (
-          <ProductCard key={p.id} product={p} />
-        ))}
-      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-6">{children}</div>
     </section>
+  );
+}
+
+/** Accessories row: the /accessories card and detail dialog, same layout as ProductRow. */
+function AccessoryRow({ title, accessories }: { title: string; accessories: ApiAccessory[] }) {
+  const [selected, setSelected] = useState<ApiAccessory | null>(null);
+  return (
+    <>
+      <ProductRow title={title} link="/accessories">
+        {accessories.map((a) => (
+          <AccessoryCard key={a.id} accessory={a} onOpen={() => setSelected(a)} />
+        ))}
+      </ProductRow>
+      <AccessoryDialog accessory={selected} onClose={() => setSelected(null)} />
+    </>
   );
 }
