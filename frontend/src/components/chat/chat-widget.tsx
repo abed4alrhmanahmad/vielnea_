@@ -36,11 +36,59 @@ import {
   useGuestSendMessage,
 } from "@/services/chat-guest";
 
+/**
+ * Phones get the chat as a full-screen sheet sized to the *visual* viewport —
+ * the part not covered by the on-screen keyboard. iOS Safari does not shrink
+ * the layout viewport when the keyboard opens, so a panel anchored to the
+ * bottom of the page would sit behind the keyboard; tracking visualViewport
+ * keeps the header on screen and the input just above the keyboard on iOS and
+ * Android alike. Short landscape screens count as phones too.
+ */
+const SHEET_QUERY = "(max-width: 639px), (max-height: 500px)";
+
+function useChatSheet(open: boolean) {
+  const [isSheet, setIsSheet] = useState(false);
+  const [viewport, setViewport] = useState<{ top: number; height: number } | null>(null);
+
+  useEffect(() => {
+    const media = window.matchMedia(SHEET_QUERY);
+    const update = () => setIsSheet(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
+    if (!open || !isSheet) return;
+    const vv = window.visualViewport;
+    const update = () =>
+      setViewport(
+        vv ? { top: vv.offsetTop, height: vv.height } : { top: 0, height: window.innerHeight },
+      );
+    update();
+    vv?.addEventListener("resize", update);
+    vv?.addEventListener("scroll", update);
+    window.addEventListener("resize", update);
+    // The sheet covers the page; stop the page behind it from scrolling.
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      vv?.removeEventListener("resize", update);
+      vv?.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open, isSheet]);
+
+  return { isSheet, viewport };
+}
+
 export function ChatWidget() {
   const { isAuthenticated } = useStore();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { isSheet, viewport } = useChatSheet(open);
 
   // Two identities, one widget. A signed-in customer keeps the existing
   // authenticated chat untouched; a visitor uses the guest endpoints, where
@@ -105,10 +153,21 @@ export function ChatWidget() {
     }
   }, [open, conversationId, unread, markRead]);
 
+  // Keep the newest message in view: on new messages, and when the keyboard
+  // opening or closing resizes the sheet.
   useEffect(() => {
     if (!open) return;
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages.length, open]);
+  }, [messages.length, open, viewport?.height]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -129,11 +188,16 @@ export function ChatWidget() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.98 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="fixed bottom-24 right-6 z-50 w-[min(22rem,calc(100vw-3rem))] h-[28rem] flex flex-col bg-card border border-border rounded shadow-xl overflow-hidden"
+            style={isSheet && viewport ? { top: viewport.top, height: viewport.height } : undefined}
+            className={`fixed z-50 flex flex-col bg-card overflow-hidden ${
+              isSheet
+                ? "inset-x-0 top-0 h-dvh w-full"
+                : "bottom-24 right-6 w-[min(22rem,calc(100vw-3rem))] h-[min(28rem,calc(100dvh-8rem))] border border-border rounded shadow-xl"
+            }`}
             role="dialog"
             aria-label="Live chat with Vielinea support"
           >
-            <div className="px-4 py-3 bg-primary text-primary-foreground flex items-center justify-between">
+            <div className="shrink-0 px-4 py-3 bg-primary text-primary-foreground flex items-center justify-between">
               <div>
                 <div className="font-display text-base leading-tight">Vielinea Support</div>
                 <div className="text-[11px] opacity-80 flex items-center gap-1.5">
@@ -146,9 +210,9 @@ export function ChatWidget() {
               <button
                 onClick={() => setOpen(false)}
                 aria-label="Close chat"
-                className="opacity-80 hover:opacity-100 transition-opacity"
+                className="-mr-2 p-2 opacity-80 hover:opacity-100 transition-opacity"
               >
-                <X className="size-4" />
+                <X className={isSheet ? "size-5" : "size-4"} />
               </button>
             </div>
 
@@ -160,7 +224,10 @@ export function ChatWidget() {
               </div>
             ) : (
               <>
-                <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
+                <div
+                  ref={scrollRef}
+                  className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 space-y-3"
+                >
                   {messagesQuery.isLoading ||
                   startConversation.isPending ||
                   guestQuery.isLoading ? (
@@ -178,9 +245,9 @@ export function ChatWidget() {
                         key={message.id}
                         className={`flex ${message.senderRole === "customer" ? "justify-end" : "justify-start"}`}
                       >
-                        <div className="max-w-[80%]">
+                        <div className="max-w-[80%] min-w-0">
                           <div
-                            className={`px-3 py-2 rounded-lg text-sm ${
+                            className={`px-3 py-2 rounded-lg text-sm whitespace-pre-wrap break-words [overflow-wrap:anywhere] ${
                               message.senderRole === "customer"
                                 ? "bg-primary text-primary-foreground"
                                 : "bg-secondary text-foreground"
@@ -209,7 +276,10 @@ export function ChatWidget() {
                   )}
                 </div>
 
-                <form onSubmit={submit} className="p-3 border-t border-border flex gap-2">
+                <form
+                  onSubmit={submit}
+                  className="shrink-0 p-3 border-t border-border flex gap-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+                >
                   <Input
                     value={text}
                     onChange={(event) => setText(event.target.value)}
@@ -232,10 +302,14 @@ export function ChatWidget() {
         )}
       </AnimatePresence>
 
+      {/* On phones the open sheet has its own close button; the launcher would
+          otherwise sit on top of the message input. */}
       <button
         aria-label={open ? "Close chat" : "Open chat"}
         onClick={() => setOpen((value) => !value)}
-        className="fixed bottom-6 right-6 z-50 flex items-center justify-center size-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary-dark transition-colors"
+        className={`fixed bottom-6 right-6 z-50 items-center justify-center size-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary-dark transition-colors ${
+          open && isSheet ? "hidden" : "flex"
+        }`}
       >
         {open ? <X className="size-6" /> : <MessageCircle className="size-6" />}
         {!open && unread > 0 && (

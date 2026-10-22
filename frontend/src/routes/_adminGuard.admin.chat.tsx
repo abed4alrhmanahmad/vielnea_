@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { Send } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowLeft, Send } from "lucide-react";
 import { PageHeader } from "@/admin/components/admin-shell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,17 @@ function AdminChatPage() {
   const threads = useChatThreads();
   const [activeId, setActiveId] = useState(threads[0]?.id ?? "");
   const [text, setText] = useState("");
+  // Phones show one pane at a time: the list, or the open conversation.
+  const [showThreadOnMobile, setShowThreadOnMobile] = useState(false);
   const active = threads.find((t) => t.id === activeId);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const lastMessageId = active?.messages[active.messages.length - 1]?.id;
+
+  // Newest message in view when a conversation opens or a message arrives.
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+  }, [activeId, lastMessageId, showThreadOnMobile]);
+
   function send() {
     if (!text.trim() || !active) return;
     chatService.send(active.id, text);
@@ -31,13 +41,16 @@ function AdminChatPage() {
         title="Live Chat"
         description={`${threads.reduce((s, t) => s + t.unread, 0)} unread`}
       />
-      <Card className="grid grid-cols-1 md:grid-cols-[280px_1fr] h-[calc(100vh-14rem)] overflow-hidden">
-        <div className="border-r border-border overflow-y-auto">
+      <Card className="grid grid-cols-1 md:grid-cols-[280px_1fr] h-[calc(100dvh-12rem)] min-h-[22rem] md:h-[calc(100dvh-14rem)] overflow-hidden">
+        <div
+          className={`border-r border-border overflow-y-auto overscroll-contain min-h-0 ${showThreadOnMobile ? "hidden md:block" : ""}`}
+        >
           {threads.map((t) => (
             <button
               key={t.id}
               onClick={() => {
                 setActiveId(t.id);
+                setShowThreadOnMobile(true);
                 chatService.markRead(t.id);
               }}
               className={`w-full text-left p-3 border-b border-border flex items-start gap-2 ${activeId === t.id ? "bg-secondary" : "hover:bg-secondary/50"}`}
@@ -67,23 +80,36 @@ function AdminChatPage() {
             </button>
           ))}
         </div>
-        <div className="flex flex-col">
+        <div className={`flex flex-col min-h-0 ${showThreadOnMobile ? "" : "hidden md:flex"}`}>
           {active ? (
             <>
-              <div className="p-3 border-b border-border">
-                <div className="text-sm font-medium">{active.customerName}</div>
-                <div className="text-xs text-muted-foreground">
-                  {active.isGuest ? "Anonymous visitor — not signed in" : active.customerEmail}
+              <div className="shrink-0 p-3 border-b border-border flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowThreadOnMobile(false)}
+                  aria-label="Back to conversations"
+                  className="md:hidden -ml-1 p-1.5 text-muted-foreground hover:text-foreground"
+                >
+                  <ArrowLeft className="size-4" />
+                </button>
+                <div className="min-w-0">
+                  <div className="text-sm font-medium truncate">{active.customerName}</div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {active.isGuest ? "Anonymous visitor — not signed in" : active.customerEmail}
+                  </div>
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              <div
+                ref={scrollRef}
+                className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 space-y-2"
+              >
                 {active.messages.map((m) => (
                   <div
                     key={m.id}
                     className={`flex ${m.from === "admin" ? "justify-end" : "justify-start"}`}
                   >
                     <div
-                      className={`max-w-[70%] px-3 py-2 rounded-lg text-sm ${m.from === "admin" ? "bg-primary text-primary-foreground" : "bg-secondary"}`}
+                      className={`max-w-[85%] md:max-w-[70%] min-w-0 px-3 py-2 rounded-lg text-sm whitespace-pre-wrap break-words [overflow-wrap:anywhere] ${m.from === "admin" ? "bg-primary text-primary-foreground" : "bg-secondary"}`}
                     >
                       {m.text}
                     </div>
@@ -95,14 +121,15 @@ function AdminChatPage() {
                   e.preventDefault();
                   send();
                 }}
-                className="p-3 border-t border-border flex gap-2"
+                className="shrink-0 p-3 border-t border-border flex gap-2"
               >
                 <Input
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   placeholder="Type a reply..."
+                  aria-label="Reply"
                 />
-                <Button type="submit">
+                <Button type="submit" disabled={!text.trim()} aria-label="Send reply">
                   <Send className="size-4" />
                 </Button>
               </form>
