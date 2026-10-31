@@ -1,7 +1,7 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Heart, Minus, Plus, Star, RotateCcw, ShieldCheck } from "lucide-react";
+import { Heart, Minus, Plus, Star, RotateCcw } from "lucide-react";
 import { Shell } from "@/components/layout/shell";
 import { ProductCard } from "@/components/shop/product-card";
 import { ProductReviews } from "@/components/shop/product-reviews";
@@ -255,15 +255,10 @@ function ProductPage() {
             </Button>
           </div>
 
-          <div className="mt-10 grid grid-cols-2 gap-4 text-xs text-muted-foreground">
-            <div className="flex flex-col items-center gap-1 text-center">
-              <RotateCcw className="size-5 text-primary" />
-              30-Day Returns
-            </div>
-            <div className="flex flex-col items-center gap-1 text-center">
-              <ShieldCheck className="size-5 text-primary" />
-              Secure Payment
-            </div>
+          {/* Secure Payment lives in the site footer, so only returns are shown here. */}
+          <div className="mt-10 flex flex-col items-center gap-1 text-center text-xs text-muted-foreground">
+            <RotateCcw className="size-5 text-primary" />
+            30-Day Returns
           </div>
         </div>
       </section>

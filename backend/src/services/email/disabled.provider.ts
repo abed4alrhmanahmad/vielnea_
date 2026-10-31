@@ -6,6 +6,7 @@
  * so a VIELINEA instance with no EMAIL_API_KEY must still take orders normally.
  */
 import type { EmailMessage, EmailProvider, EmailSendResult } from "./provider.js";
+import { maskEmails } from "./format.js";
 
 let warned = false;
 
@@ -22,7 +23,9 @@ export const disabledEmailProvider: EmailProvider = {
       );
     }
     // eslint-disable-next-line no-console
-    console.log(`[email] skipped (provider disabled): "${message.subject}" -> ${message.to}`);
+    console.log(
+      `[email] skipped (provider disabled): "${message.subject}" -> ${maskEmails(message.to)}`,
+    );
     return Promise.resolve({ id: null });
   },
 };

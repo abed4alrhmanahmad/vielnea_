@@ -53,7 +53,7 @@ VITE_API_URL=http://localhost:5000/api
 
 | Email | Password | Role |
 | --- | --- | --- |
-| `demo@vielinea.com` | `123456` | customer |
+| _your_ `DEMO_USER_EMAIL` | _your_ `DEMO_USER_PASSWORD` | customer |
 | _your_ `ADMIN_EMAIL` | _your_ `ADMIN_PASSWORD` | admin |
 
 The admin account is created by `npm run db:seed` from the `ADMIN_EMAIL` and

@@ -7,6 +7,7 @@ import { cardPaymentProvider } from "./payment/index.js";
 import { checkoutPaymentMethods } from "./payment/methods.js";
 import { shippingFor } from "./cart.service.js";
 import { sendNewOrderNotification } from "./email/order-notification.js";
+import { sendOrderConfirmation } from "./email/order-confirmation.js";
 import type { Order } from "../types/models.js";
 import type { PaginationMeta } from "../types/api.js";
 import type { z } from "zod";
@@ -262,14 +263,15 @@ export const orderService = {
       return created;
     });
 
-    // 7. Tell the admin an order came in.
+    // 7. Tell the admin an order came in, and confirm it to the customer.
     //
-    // This runs only once the transaction above has committed, so the email
-    // can never describe an order that was rolled back. It is deliberately not
-    // awaited and cannot reject: notifying the shop is not part of placing an
-    // order, and a mail outage must not slow down or fail a customer's
-    // checkout. Failures are logged by sendNewOrderNotification itself.
+    // This runs only once the transaction above has committed, so neither email
+    // can describe an order that was rolled back. They are deliberately not
+    // awaited and cannot reject: emailing is not part of placing an order, and a
+    // mail outage must not slow down or fail a customer's checkout. The two are
+    // independent — each logs its own failure and neither waits on the other.
     void sendNewOrderNotification(order);
+    void sendOrderConfirmation(order);
 
     return order;
   },

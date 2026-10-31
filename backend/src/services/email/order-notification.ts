@@ -9,23 +9,9 @@
  *      address and notes are free text straight from the checkout form.
  */
 import { env } from "../../config/env.js";
-import { emailProvider } from "./index.js";
-import { EmailDeliveryError } from "./provider.js";
+import { deliverOrderEmail } from "./deliver.js";
+import { escapeHtml, money } from "./format.js";
 import type { Order } from "../../types/models.js";
-
-/** Escapes the five characters that can break out of HTML text or an attribute. */
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function money(amount: number): string {
-  return `$${amount.toFixed(2)}`;
-}
 
 function paymentLabel(order: Order): string {
   const method = order.paymentMethod === "cod" ? "Cash on Delivery" : "Card";
@@ -154,48 +140,15 @@ export function buildOrderNotification(order: Order): { subject: string; html: s
  * transaction has committed, and a bounced notification must not surface to
  * the customer as a broken order.
  */
-export async function sendNewOrderNotification(order: Order): Promise<void> {
-  const provider = emailProvider();
-
-  try {
-    const { subject, html, text } = buildOrderNotification(order);
-
-    const result = await provider.send({
-      to: env.orderNotificationEmail,
-      from: env.EMAIL_FROM,
-      // A reply goes to the customer, which is what an admin reaching for
-      // "Reply" on a new-order alert actually wants.
-      replyTo: order.email,
-      subject,
-      html,
-      text,
-    });
-
-    if (provider.isEnabled) {
-      // The id is the handle for this message in Resend's Emails log, which is
-      // where delivery — as opposed to acceptance — can actually be confirmed.
-      // eslint-disable-next-line no-console
-      console.log(
-        `[email] order notification accepted for ${order.orderNumber} ` +
-          `via ${provider.name} -> ${env.orderNotificationEmail} ` +
-          `(from ${env.EMAIL_FROM}, id ${result.id ?? "none"})`,
-      );
-    }
-  } catch (error) {
-    // Logged, never rethrown: the order is already committed and must stand.
-    // Status and provider text are printed so a rejection is diagnosable from
-    // the log alone. Neither ever contains the API key.
-    if (error instanceof EmailDeliveryError) {
-      // eslint-disable-next-line no-console
-      console.error(
-        `[email] order notification FAILED for ${order.orderNumber} ` +
-          `via ${provider.name} -> ${env.orderNotificationEmail} ` +
-          `(from ${env.EMAIL_FROM}, http ${error.status ?? "no response"}): ${error.message}`,
-      );
-      return;
-    }
-    const message = error instanceof Error ? error.message : String(error);
-    // eslint-disable-next-line no-console
-    console.error(`[email] order notification FAILED for ${order.orderNumber}:`, message);
-  }
+export function sendNewOrderNotification(order: Order): Promise<void> {
+  // Logged, never rethrown, retried only when the failure is transient — see
+  // deliver.ts. The status and provider text it logs never contain the API key.
+  return deliverOrderEmail("order notification", order, () => ({
+    to: env.orderNotificationEmail,
+    from: env.EMAIL_FROM,
+    // A reply goes to the customer, which is what an admin reaching for
+    // "Reply" on a new-order alert actually wants.
+    replyTo: order.email,
+    ...buildOrderNotification(order),
+  }));
 }

@@ -11,7 +11,7 @@
  *   footer.tsx                    -> footer columns, legal line
  *   about.tsx                     -> about page sections
  *   contact.tsx                   -> contact page copy
- *   index.tsx                     -> hero, value bar, section headings, instagram
+ *   index.tsx                     -> hero, section headings, instagram
  *   admin/services/site-content.ts -> announcement, hero copy, footer tagline,
  *                                     contact details, newsletter, social
  *   data/products.ts              -> testimonials
@@ -168,19 +168,6 @@ export const seedPages: SeedPage[] = [
         displayOrder: 0,
       },
       {
-        // index.tsx value bar
-        sectionKey: "value_bar",
-        sectionType: "value_bar",
-        displayOrder: 1,
-        settings: {
-          items: [
-            { icon: "RotateCcw", title: "Easy Returns", sub: "30-day return policy" },
-            { icon: "ShieldCheck", title: "Secure Payment", sub: "100% protected" },
-            { icon: "HeadphonesIcon", title: "24/7 Support", sub: "We're here to help" },
-          ],
-        },
-      },
-      {
         sectionKey: "featured_categories",
         sectionType: "featured_categories",
         title: "",
@@ -209,9 +196,9 @@ export const seedPages: SeedPage[] = [
       {
         sectionKey: "gifts",
         sectionType: "product_row",
-        title: "Clothes with Gifts",
+        title: "Accessories",
         displayOrder: 5,
-        settings: { source: "gift", limit: 4, productIds: [], linkSearch: { gift: "1" } },
+        settings: { source: "accessories", limit: 4, productIds: [] },
       },
       {
         sectionKey: "featured",

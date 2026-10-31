@@ -1,13 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, type ReactNode } from "react";
-import {
-  ArrowRight,
-  Truck,
-  RotateCcw,
-  ShieldCheck,
-  HeadphonesIcon,
-  type LucideIcon,
-} from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Shell } from "@/components/layout/shell";
 import { ProductCard } from "@/components/shop/product-card";
 import { AccessoryCard, AccessoryDialog } from "@/components/shop/accessory-card";
@@ -33,14 +26,6 @@ import type { StoreProduct } from "@/lib/api/mappers";
 import { Skeleton } from "@/components/ui/skeleton";
 import { IMAGE_SIZES, ResponsiveImage } from "@/components/responsive-image";
 import { selectedImagesOptions, useSelectedImages } from "@/services/selected-images";
-
-/** Icon names live in CMS settings; the components themselves stay in code. */
-const VALUE_ICONS: Record<string, LucideIcon> = {
-  Truck,
-  RotateCcw,
-  ShieldCheck,
-  HeadphonesIcon,
-};
 
 /**
  * Rendered width of one Instagram tile: six across the container from `md` up,
@@ -191,10 +176,6 @@ function Home() {
   const homeAccessories = useAccessories(HOME_ACCESSORIES_QUERY).data?.accessories ?? [];
 
   // --- CMS-driven sections --------------------------------------------------
-  const valueBar = findSection(page, "value_bar");
-  const valueItems =
-    (valueBar?.settings["items"] as Array<{ icon: string; title: string; sub: string }>) ?? [];
-
   const categoriesSection = findSection(page, "featured_categories");
   const categoryKeys = (categoriesSection?.settings["categories"] as string[] | undefined) ?? [];
   const categoryLabelOverrides =
@@ -204,17 +185,22 @@ function Home() {
   // rather than a /shop?cat= link nobody stocks.
   const categoryHrefOverrides =
     (categoriesSection?.settings["hrefs"] as Record<string, string> | undefined) ?? {};
+  // Admin → Homepage can also swap a card's image and switch single cards off.
+  const categoryImageOverrides =
+    (categoriesSection?.settings["images"] as Record<string, string> | undefined) ?? {};
+  const hiddenCategoryKeys = (categoriesSection?.settings["hidden"] as string[] | undefined) ?? [];
   // Category cards use live categories from the database, with the CMS choosing
-  // which ones appear, in what order, and any label or destination override.
+  // which ones appear, in what order, and any label, image or destination override.
   const featuredCategories = categoryKeys.flatMap((key) => {
+    if (hiddenCategoryKeys.includes(key)) return [];
     const match = apiCategories.find((c) => c.slug === key);
     if (!match) return [];
     const href = categoryHrefOverrides[key];
     return [
       {
         key,
-        label: categoryLabelOverrides[key] ?? match.label,
-        image: match.imageUrl ?? "",
+        label: categoryLabelOverrides[key] || match.label,
+        image: categoryImageOverrides[key] || match.imageUrl || "",
         // Same shape the header derives from CMS hrefs, so one <Link> covers both.
         ...(href ? parseCategoryHref(href) : { to: "/shop", search: { cat: key } }),
       },
@@ -281,52 +267,52 @@ function Home() {
       {/* Hero — a carousel driven entirely by GET /hero-slides. */}
       <HeroCarousel />
 
-      {/* Value bar */}
-      <section className="border-y border-border bg-background">
-        <div className="container-luxe grid grid-cols-2 md:grid-cols-4 gap-6 py-8">
-          {valueItems.map(({ icon, title, sub }) => {
-            const Icon = VALUE_ICONS[icon] ?? Truck;
-            return (
-              <div key={title} className="flex items-center gap-3">
-                <Icon className="size-6 text-primary shrink-0" />
-                <div>
-                  <p className="text-sm font-medium text-foreground">{title}</p>
-                  <p className="text-xs text-muted-foreground">{sub}</p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+      {/* Editorial intro. Top padding only: the categories section below already
+          opens with its own py-20, which gives the gap under the rule. */}
+      <section className="container-luxe pt-20 md:pt-28 text-center">
+        <p className="text-[11px] uppercase tracking-[0.35em] text-primary mb-4">
+          Discover your style
+        </p>
+        <h2 className="font-display italic font-normal text-4xl md:text-6xl text-primary uppercase tracking-[0.04em] text-balance">
+          Style is in the details
+        </h2>
+        <p className="font-display italic font-normal mt-5 mx-auto max-w-xl text-lg md:text-xl text-muted-foreground leading-relaxed text-balance">
+          Timeless pieces. Beautiful details. Your signature style.
+        </p>
+        <div aria-hidden className="mx-auto mt-8 h-px w-16 bg-primary/30" />
       </section>
 
-      {/* Featured categories */}
-      <section className="container-luxe py-20">
-        <div className="grid md:grid-cols-3 gap-4">
-          {featuredCategories.map((c) => (
-            <Link
-              key={c.key}
-              to={c.to}
-              search={c.search as never}
-              className="group relative aspect-[4/5] overflow-hidden rounded-lg bg-secondary"
-            >
-              <ResponsiveImage
-                src={c.image}
-                alt={c.label}
-                sizes={IMAGE_SIZES.categoryCard}
-                loading="lazy"
-                className="size-full object-cover transition-transform duration-700 group-hover:scale-105"
-              />
-              <div className="absolute inset-0 bg-linear-to-t from-black/40 to-transparent" />
-              <div className="absolute bottom-6 left-6 text-background">
-                <p className="font-display text-2xl">{c.label}</p>
-                <p className="text-xs uppercase tracking-[0.2em] mt-1 flex items-center gap-1">
-                  Discover <ArrowRight className="size-3" />
-                </p>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </section>
+      {/* Featured categories. Omitted entirely when the section is switched off
+          or has no visible cards, rather than leaving an empty padded band. */}
+      {featuredCategories.length > 0 && (
+        <section className="container-luxe py-20">
+          <div className="grid md:grid-cols-3 gap-4">
+            {featuredCategories.map((c) => (
+              <Link
+                key={c.key}
+                to={c.to}
+                search={c.search as never}
+                className="group relative aspect-[4/5] overflow-hidden rounded-lg bg-secondary"
+              >
+                <ResponsiveImage
+                  src={c.image}
+                  alt={c.label}
+                  sizes={IMAGE_SIZES.categoryCard}
+                  loading="lazy"
+                  className="size-full object-cover transition-transform duration-700 group-hover:scale-105"
+                />
+                <div className="absolute inset-0 bg-linear-to-t from-black/40 to-transparent" />
+                <div className="absolute bottom-6 left-6 text-background">
+                  <p className="font-display text-2xl">{c.label}</p>
+                  <p className="text-xs uppercase tracking-[0.2em] mt-1 flex items-center gap-1">
+                    Discover <ArrowRight className="size-3" />
+                  </p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {catalogueQuery.isPending && (
         <section className="container-luxe py-16">

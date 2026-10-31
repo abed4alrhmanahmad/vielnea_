@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Instagram, Facebook, Twitter } from "lucide-react";
+import { Instagram, Facebook, Twitter, ShieldCheck } from "lucide-react";
 import { Logo } from "./logo";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -51,6 +51,14 @@ export function Footer() {
               <Twitter className="size-4" />
             </a>
           </div>
+          {/* Moved here from the homepage value bar, keeping its look. */}
+          <div className="mt-6 flex items-center gap-3">
+            <ShieldCheck className="size-6 text-primary shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-foreground">Secure Payment</p>
+              <p className="text-xs text-muted-foreground">100% protected</p>
+            </div>
+          </div>
         </div>
 
         {/* Link columns are CMS-managed: headings, labels, order and targets. */}
@@ -94,7 +102,9 @@ export function Footer() {
                 // form showed a success toast without saving anything.
                 newsletter.mutate({ email, source: "footer" }, { onSuccess: () => form.reset() });
               }}
-              className="flex gap-2"
+              // Stacked at md, where the four footer columns are too narrow for
+              // the field and button side by side; one column below, wide above.
+              className="flex gap-2 md:flex-col lg:flex-row"
             >
               <Input
                 name="email"

@@ -6,6 +6,8 @@
    font-weight utility, so 400/600/700 were downloaded-never-used @font-face
    declarations. Add the matching import back if a weight class is introduced. */
 @import "@fontsource/playfair-display/500.css";
+/* Light italic for the homepage editorial intro ("Style is in the details"). */
+@import "@fontsource/playfair-display/400-italic.css";
 @import "@fontsource-variable/inter";
 
 @custom-variant dark (&:is(.dark *));

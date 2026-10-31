@@ -16,6 +16,7 @@ import {
   type SitePage,
   type SiteSection,
 } from "@/admin/services/cms";
+import { FeaturedCategoriesEditor } from "@/admin/components/featured-categories-editor";
 
 export const Route = createFileRoute("/_adminGuard/admin/homepage")({
   head: () => ({
@@ -76,9 +77,13 @@ function PageEditor({ slug }: { slug: string }) {
       {page.sections
         .slice()
         .sort((a, b) => a.displayOrder - b.displayOrder)
-        .map((section) => (
-          <SectionCard key={section.id} section={section} />
-        ))}
+        .map((section) =>
+          section.sectionType === "featured_categories" ? (
+            <FeaturedCategoriesEditor key={section.id} section={section} />
+          ) : (
+            <SectionCard key={section.id} section={section} />
+          ),
+        )}
     </div>
   );
 }

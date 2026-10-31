@@ -17,6 +17,12 @@ export interface EmailMessage {
   text: string;
   /** Where a reply should go — the customer, for an order notification. */
   replyTo?: string;
+  /**
+   * De-duplication key. A repeat send with the same key inside the provider's
+   * window (24 hours for Resend) returns the first result instead of delivering
+   * another copy, which is what makes retrying a send safe.
+   */
+  idempotencyKey?: string;
 }
 
 /** What the provider reports back once it has accepted the message. */

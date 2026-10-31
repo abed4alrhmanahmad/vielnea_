@@ -3,6 +3,7 @@ import { env } from "./config/env.js";
 import { closePool, pool } from "./lib/db.js";
 import { startChatListener, stopChatListener } from "./lib/chat-bus.js";
 import { emailProvider } from "./services/email/index.js";
+import { customerConfirmationsEnabled } from "./services/email/order-confirmation.js";
 import { loadFrontend } from "./lib/frontend.js";
 
 const frontend = await loadFrontend();
@@ -49,6 +50,13 @@ const server = app.listen(env.PORT, host as string, () => {
       ? `  Email       ${mailer.name} — new orders notify ${env.orderNotificationEmail} (from ${env.EMAIL_FROM})`
       : `  Email       DISABLED — order notifications are skipped (set EMAIL_API_KEY in backend/.env, then restart)`,
   );
+  if (mailer.isEnabled) {
+    console.log(
+      customerConfirmationsEnabled()
+        ? "  Email       customer order confirmations ON"
+        : "  Email       customer order confirmations OFF — EMAIL_FROM is Resend's test sender, which only reaches the account owner",
+    );
+  }
 
   // Attaches LISTEN vielinea_chat for real-time chat delivery. Non-fatal: the
   // write path publishes inline too, so chat works while this retries.

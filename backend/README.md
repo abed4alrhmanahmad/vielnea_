@@ -231,7 +231,7 @@ Seeded accounts:
 
 | Email | Password | Role |
 | --- | --- | --- |
-| `demo@vielinea.com` | `123456` | customer |
+| _your_ `DEMO_USER_EMAIL` | _your_ `DEMO_USER_PASSWORD` | customer |
 | _your_ `ADMIN_EMAIL` | _your_ `ADMIN_PASSWORD` | admin |
 
 The admin row is seeded from `ADMIN_EMAIL` / `ADMIN_PASSWORD` in `backend/.env`.
@@ -574,51 +574,80 @@ session pooler on port 5432 — it does not work through the transaction pooler 
 
 ---
 
-## Admin order notifications
+## Order emails
 
-When a customer's checkout succeeds, the backend emails the VIELINEA admin that
-a new order has arrived.
+When a customer's checkout succeeds, the backend sends two independent emails:
+the VIELINEA admin is told a new order has arrived, and the customer gets an
+order confirmation.
 
 ```
 POST /api/orders  ->  orderService.checkout()
                         transaction: stock, order, items, cart cleared
                       COMMIT
                         -> sendNewOrderNotification(order)   [fire-and-forget]
+                        -> sendOrderConfirmation(order)      [fire-and-forget]
 ```
 
-The send happens **after** the transaction commits, so a notification can never
-describe an order that was rolled back. It is not awaited and cannot reject:
-notifying the shop is not part of placing an order, so a mail outage never slows
+Both sends happen **after** the transaction commits, so an email can never
+describe an order that was rolled back. Neither is awaited and neither can
+reject: emailing is not part of placing an order, so a mail outage never slows
 down or fails a customer's checkout — the failure is logged and the order still
-returns 201.
+returns 201. The two are independent: one failing never stops the other.
 
-The email carries the order number, order ID, customer name, contact and
+The admin email carries the order number, order ID, customer name, contact and
 shipping details, the line items, the totals and the payment method. `Reply-To`
-is set to the customer, so replying from the alert reaches the buyer. Every
-interpolated value is HTML-escaped — the name, address and notes are free text
-from the checkout form.
+is set to the customer, so replying from the alert reaches the buyer. The
+customer email carries the order number, items, totals, payment and delivery
+details, but not the internal order ID. Every interpolated value is
+HTML-escaped — the name, address and notes are free text from the checkout form.
+
+Delivery ([src/services/email/deliver.ts](src/services/email/deliver.ts)):
+
+- Failures that can clear by themselves — no response, 429, 5xx — are retried
+  twice, after 2 s and 6 s. A 4xx is the provider refusing the message and is
+  not retried.
+- Every send carries an `Idempotency-Key` built from the order id and the email
+  kind, so a retry cannot deliver a second copy (Resend keeps keys for 24 hours).
+- Log lines mask every email address, including any quoted in a provider error.
+
+### Customer confirmations need a verified sending domain
+
+Resend's shared test sender, `onboarding@resend.dev`, only delivers to the Resend
+account owner's own address. While `EMAIL_FROM` uses it, customer confirmations
+are skipped with a log line; the admin email, addressed to the owner, still goes
+out. To turn confirmations on, verify a domain in Resend (it lists the DNS
+records to add) and set `EMAIL_FROM` to an address on it, for example
+`VIELINEA <orders@vielinea.com>`. No code change is needed. The boot log shows
+which state the server is in.
 
 ### Configuration
 
 | Variable | Purpose | Default |
 | --- | --- | --- |
-| `EMAIL_API_KEY` | Resend API key. Unset = notifications skipped | unset |
-| `EMAIL_FROM` | Verified sender address | `VIELINEA <onboarding@resend.dev>` |
-| `ORDER_NOTIFICATION_EMAIL` | Recipient of the alert | falls back to `ADMIN_EMAIL` |
+| `EMAIL_API_KEY` | Resend API key. Unset = both emails skipped | unset |
+| `EMAIL_FROM` | Sender. Customer confirmations need one on a domain verified in Resend | `VIELINEA <onboarding@resend.dev>` |
+| `ORDER_NOTIFICATION_EMAIL` | Recipient of the admin alert | falls back to `ADMIN_EMAIL` |
 
 All three are server-side only and never reach the browser. `backend/.env` is
 gitignored; no email credential appears in `frontend/`, in any `VITE_*`
 variable, or in this repository.
 
 The provider is chosen by presence rather than by name: set `EMAIL_API_KEY` and
-Resend is used, leave it unset and each notification is skipped with a log line.
+Resend is used, leave it unset and each email is skipped with a log line.
 That default keeps checkout fully working on an instance with no mail account.
 
 ```
-[email] order notification sent for VLN-20260924-0484
-[email] skipped (provider disabled): "New VIELINEA Order VLN-..." -> admin@example.com
-[email] order notification failed for VLN-20260924-0484: Resend responded 401: ...
+[email] order notification accepted for VLN-20260924-0484 via resend -> a***@gmail.com (from VIELINEA <orders@vielinea.com>, id 01a1…)
+[email] customer confirmation accepted for VLN-20260924-0484 via resend -> c***@example.com (from VIELINEA <orders@vielinea.com>, id 01a1…)
+[email] customer confirmation skipped for VLN-…: EMAIL_FROM is Resend's test sender, which only delivers to the Resend account owner
+[email] order notification attempt 1/3 failed for VLN-… (http 503): Resend responded 503: … — retrying
+[email] order notification FAILED for VLN-… via resend -> a***@gmail.com (from …, http 401, attempt 1/3): Resend responded 401: …
+[email] skipped (provider disabled): "New VIELINEA Order VLN-..." -> a***@example.com
 ```
+
+The `id` is the message's handle in Resend's Emails log. "Accepted" means Resend
+took the message; whether it was delivered, bounced or suppressed is visible
+only there.
 
 ### Structure
 
@@ -628,7 +657,10 @@ src/services/email/
   resend.provider.ts       Resend adapter over its REST API
   disabled.provider.ts     no-op default when nothing is configured
   index.ts                 resolves the adapter from configuration
-  order-notification.ts    the new-order template and sender
+  deliver.ts               shared send: retries, idempotency key, masked logs
+  format.ts                HTML escaping, money, address masking
+  order-notification.ts    the admin new-order template and sender
+  order-confirmation.ts    the customer confirmation template and sender
 ```
 
 This mirrors `src/services/payment/`: one interface, a real adapter selected by
@@ -639,9 +671,11 @@ runs on Node >= 20, where `fetch` is global.
 Adding a different provider: implement `EmailProvider` and return it from
 `resolve()` in `src/services/email/index.ts`.
 
-`npm run test:order-email` verifies the message content, the escaping of hostile
-customer input, the exact request sent to Resend (fetch stubbed, no network) and
-that a 401 or a dropped connection never propagates to checkout.
+`npm run test:order-email` verifies both messages' content, the escaping of
+hostile customer input, the exact request sent to Resend including its
+idempotency key (fetch stubbed, no network), retries, that the two emails fail
+independently, masked logs, the test-sender gate, and that a 401 or a dropped
+connection never propagates to checkout.
 
 ---
 
