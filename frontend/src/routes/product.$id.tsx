@@ -14,6 +14,7 @@ import { useStore } from "@/contexts/store-context";
 import { productDetailOptions, useRelatedProducts } from "@/services/products";
 import type { StoreProduct } from "@/lib/api/mappers";
 import { ApiError } from "@/lib/api/client";
+import { breadcrumbJsonLd, pageSeo, productJsonLd } from "@/lib/seo";
 
 /**
  * Per-click cap for the quantity stepper. Fixed rather than the stock level, so
@@ -33,17 +34,43 @@ export const Route = createFileRoute("/product/$id")({
       throw error;
     }
   },
-  head: ({ loaderData }) => ({
-    meta: loaderData
-      ? [
-          { title: `${loaderData.product.title} — Vielinea` },
-          { name: "description", content: loaderData.product.description },
-          { property: "og:title", content: `${loaderData.product.title} — Vielinea` },
-          { property: "og:description", content: loaderData.product.description },
-          { property: "og:type", content: "product" },
-        ]
-      : [{ title: "Product — Vielinea" }, { name: "robots", content: "noindex" }],
-  }),
+  head: ({ loaderData }) => {
+    if (!loaderData) {
+      return { meta: [{ title: "Product — Vielinea" }, { name: "robots", content: "noindex" }] };
+    }
+    const { product } = loaderData;
+    const path = `/product/${product.slug}`;
+    const seo = pageSeo(path, product.images[0]);
+    // Same "complete" rule as New Arrivals and the sitemap: a draft with no image
+    // or no price stays reachable but out of search results.
+    const isDraft = product.images.length === 0 || product.finalPrice <= 0;
+    const description = product.description || `Shop ${product.title} at Vielinea.`;
+    return {
+      meta: [
+        { title: `${product.title} — Vielinea` },
+        { name: "description", content: description },
+        { property: "og:title", content: `${product.title} — Vielinea` },
+        { property: "og:description", content: description },
+        { property: "og:type", content: "product" },
+        ...(isDraft ? [{ name: "robots", content: "noindex" }] : []),
+        ...seo.meta,
+      ],
+      links: seo.links,
+      scripts: isDraft
+        ? []
+        : [
+            productJsonLd(product),
+            breadcrumbJsonLd([
+              { name: "Home", path: "/" },
+              {
+                name: product.categoryLabel,
+                path: `/shop?cat=${encodeURIComponent(product.category)}`,
+              },
+              { name: product.title, path },
+            ]),
+          ],
+    };
+  },
   errorComponent: () => (
     <Shell>
       <div className="container-luxe py-24 text-center">Something went wrong.</div>

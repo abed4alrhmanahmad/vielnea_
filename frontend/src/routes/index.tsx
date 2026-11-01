@@ -26,6 +26,7 @@ import type { StoreProduct } from "@/lib/api/mappers";
 import { Skeleton } from "@/components/ui/skeleton";
 import { IMAGE_SIZES, ResponsiveImage } from "@/components/responsive-image";
 import { selectedImagesOptions, useSelectedImages } from "@/services/selected-images";
+import { organizationJsonLd, pageSeo, websiteJsonLd } from "@/lib/seo";
 
 /**
  * Rendered width of one Instagram tile: six across the container from `md` up,
@@ -156,7 +157,10 @@ export const Route = createFileRoute("/")({
       },
       { property: "og:title", content: "Vielinea — Timeless Luxury" },
       { property: "og:description", content: "Timeless luxury for the modern woman." },
+      ...pageSeo("/").meta,
     ],
+    links: pageSeo("/").links,
+    scripts: [organizationJsonLd(), websiteJsonLd()],
   }),
   component: Home,
 });

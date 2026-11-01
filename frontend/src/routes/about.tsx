@@ -9,6 +9,7 @@ import { CompanyTimeline } from "@/components/about/company-timeline";
 import { companyTimelineOptions } from "@/services/company-timeline";
 import { faqsOptions, useFaqs } from "@/services/faqs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { pageSeo } from "@/lib/seo";
 
 export const Route = createFileRoute("/about")({
   loader: async ({ context }) => {
@@ -28,7 +29,9 @@ export const Route = createFileRoute("/about")({
       },
       { property: "og:title", content: "About Vielinea" },
       { property: "og:description", content: "Quiet luxury, considered craft, made to endure." },
+      ...pageSeo("/about").meta,
     ],
+    links: pageSeo("/about").links,
   }),
   component: AboutPage,
 });

@@ -18,6 +18,7 @@ import { useProducts } from "@/services/products";
 import { categoriesOptions, useCategories } from "@/services/categories";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { pageSeo } from "@/lib/seo";
 
 const searchSchema = z.object({
   cat: z.string().optional(),
@@ -28,19 +29,40 @@ const searchSchema = z.object({
 });
 
 export const Route = createFileRoute("/shop")({
-  head: () => ({
-    meta: [
-      { title: "Shop — Vielinea" },
-      {
-        name: "description",
-        content: "Shop the Vielinea collection of dresses, blouses, pants, handbags and jewelry.",
-      },
-      { property: "og:title", content: "Shop — Vielinea" },
-      { property: "og:description", content: "Browse the full Vielinea collection." },
-    ],
-  }),
   loader: ({ context }) => context.queryClient.ensureQueryData(categoriesOptions()),
   validateSearch: (s) => searchSchema.parse(s),
+  head: ({ loaderData, match }) => {
+    // A category is a collection page of its own, named from its database row.
+    // Sort, paging and gift filters are views of it, so they share its canonical;
+    // search results are crawlable but kept out of the index.
+    const category = match.search.cat
+      ? loaderData?.find((c) => c.slug === match.search.cat)
+      : undefined;
+    const title = category ? `${category.label} — Vielinea` : "Shop — Vielinea";
+    const seo = pageSeo(
+      category ? `/shop?cat=${encodeURIComponent(category.slug)}` : "/shop",
+      category?.imageUrl ?? undefined,
+    );
+    return {
+      meta: [
+        { title },
+        {
+          name: "description",
+          content:
+            category?.description ||
+            "Shop the Vielinea collection of dresses, blouses, pants, handbags and jewelry.",
+        },
+        { property: "og:title", content: title },
+        {
+          property: "og:description",
+          content: category?.description || "Browse the full Vielinea collection.",
+        },
+        ...(match.search.q ? [{ name: "robots", content: "noindex, follow" }] : []),
+        ...seo.meta,
+      ],
+      links: seo.links,
+    };
+  },
   component: ShopPage,
 });
 

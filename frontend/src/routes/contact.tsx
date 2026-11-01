@@ -14,6 +14,7 @@ import {
   useSiteSettings,
 } from "@/services/site-content";
 import { useContactMutation } from "@/services/contact";
+import { pageSeo } from "@/lib/seo";
 
 const schema = z.object({
   name: z.string().min(2, "Enter your name"),
@@ -30,7 +31,9 @@ export const Route = createFileRoute("/contact")({
       { name: "description", content: "Get in touch with the Vielinea client care team." },
       { property: "og:title", content: "Contact Vielinea" },
       { property: "og:description", content: "Talk to our client care team." },
+      ...pageSeo("/contact").meta,
     ],
+    links: pageSeo("/contact").links,
   }),
   component: ContactPage,
 });

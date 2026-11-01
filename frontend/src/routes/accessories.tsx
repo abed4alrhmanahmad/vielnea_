@@ -19,6 +19,7 @@ import {
 import { accessoryListOptions, useAccessories } from "@/services/accessories";
 import type { ApiAccessory } from "@/lib/api/types";
 import { AccessoryCard, AccessoryDialog } from "@/components/shop/accessory-card";
+import { pageSeo } from "@/lib/seo";
 
 const searchSchema = z.object({
   q: z.string().optional(),
@@ -51,7 +52,9 @@ export const Route = createFileRoute("/accessories")({
         property: "og:description",
         content: "Complementary finishing pieces, chosen to accompany your order.",
       },
+      ...pageSeo("/accessories").meta,
     ],
+    links: pageSeo("/accessories").links,
   }),
   validateSearch: (s) => searchSchema.parse(s),
   loaderDeps: ({ search }) => ({ search }),

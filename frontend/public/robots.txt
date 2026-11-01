@@ -1,0 +1,11 @@
+# Vielinea — https://vielinea.com
+#
+# Everything public may be crawled. Pages that must stay out of search results
+# (cart, wishlist, sign-in, account) carry a noindex tag instead of a Disallow,
+# because a blocked page's noindex can never be read. /api stays crawlable so
+# search engines can render pages exactly as visitors see them.
+User-agent: *
+Allow: /
+Disallow: /admin
+
+Sitemap: https://vielinea.com/sitemap.xml

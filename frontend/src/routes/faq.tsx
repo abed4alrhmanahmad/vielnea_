@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Shell } from "@/components/layout/shell";
 import { FaqAccordion } from "@/components/faq-accordion";
 import { faqsOptions, useFaqs, type FaqContent } from "@/services/faqs";
+import { pageSeo } from "@/lib/seo";
 
 export const Route = createFileRoute("/faq")({
   // Loaded server-side so the questions reach both the rendered HTML and the
@@ -22,9 +23,9 @@ export const Route = createFileRoute("/faq")({
         property: "og:description",
         content: "Everything you need to know about shopping with Vielinea.",
       },
-      { property: "og:url", content: "/faq" },
+      ...pageSeo("/faq").meta,
     ],
-    links: [{ rel: "canonical", href: "/faq" }],
+    links: pageSeo("/faq").links,
     // Built from the same rows the page renders, so the structured data can
     // never drift from what a visitor sees. Omitted entirely when the section
     // is switched off or empty.

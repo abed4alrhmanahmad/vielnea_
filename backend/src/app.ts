@@ -4,6 +4,7 @@ import helmet from "helmet";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import routes from "./routes/index.js";
+import { seoController } from "./controllers/seo.controller.js";
 import { errorHandler, notFoundHandler } from "./middleware/error.js";
 import { generalLimiter } from "./middleware/rate-limit.js";
 import { env } from "./config/env.js";
@@ -103,6 +104,9 @@ export function createApp({ frontend }: AppOptions = {}): express.Express {
       });
     });
   }
+
+  // Outside /api because search engines expect it at the site root.
+  app.get("/sitemap.xml", seoController.sitemap);
 
   app.use("/api", routes);
 
