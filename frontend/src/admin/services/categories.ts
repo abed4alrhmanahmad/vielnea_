@@ -2,7 +2,13 @@
  * Admin category management, backed by the Express API (Supabase).
  * Export shape is unchanged from the previous localStorage service.
  */
-import { apiClient, adminKeys, runAdminMutation, useAdminList } from "../lib/api-hooks";
+import {
+  apiClient,
+  adminKeys,
+  runAdminMutation,
+  useAdminList,
+  useAdminListQuery,
+} from "../lib/api-hooks";
 import type { ApiCategory } from "@/lib/api/types";
 
 export interface AdminCategory {
@@ -48,7 +54,7 @@ export const categoriesService = {
           imageUrl: input.imageUrl || null,
         }),
       {
-        invalidate: [adminKeys.categories, ["categories"], ["products"]],
+        invalidate: [adminKeys.categories, ["categories"], ["products"], adminKeys.products],
         success: "Category created",
         failure: "Could not create the category",
       },
@@ -65,7 +71,8 @@ export const categoriesService = {
     if (Object.keys(body).length === 0) return;
 
     runAdminMutation(() => apiClient.put(`/admin/categories/${id}`, body), {
-      invalidate: [adminKeys.categories, ["categories"], ["products"]],
+      // Product rows show the category's name, so they refresh with it.
+      invalidate: [adminKeys.categories, ["categories"], ["products"], adminKeys.products],
       success: "Category updated",
       failure: "Could not update the category",
     });
@@ -73,7 +80,7 @@ export const categoriesService = {
 
   remove(id: string): void {
     runAdminMutation(() => apiClient.delete(`/admin/categories/${id}`), {
-      invalidate: [adminKeys.categories, ["categories"], ["products"]],
+      invalidate: [adminKeys.categories, ["categories"], ["products"], adminKeys.products],
       success: "Category deleted",
       failure: "Could not delete the category",
     });
@@ -111,4 +118,18 @@ export function useCategories(): AdminCategory[] {
   return useAdminList<ApiCategory, AdminCategory>(adminKeys.categories, "/categories", (rows) =>
     rows.map(toAdminCategory),
   );
+}
+
+/**
+ * The category list for pickers elsewhere in the admin (the product form and
+ * filter). Same key and endpoint as `useCategories`, so it is the very data the
+ * Categories page edits, and every category mutation below refreshes it.
+ */
+export function useCategoryOptions() {
+  const { data, isPending, isError } = useAdminListQuery<ApiCategory, AdminCategory>(
+    adminKeys.categories,
+    "/categories",
+    (rows) => rows.map(toAdminCategory),
+  );
+  return { categories: data, isPending, isError };
 }

@@ -42,6 +42,19 @@ export function useAdminList<TApi, TView>(
   map: (rows: TApi[]) => TView[],
   enabled = true,
 ): TView[] {
+  return useAdminListQuery(key, path, map, enabled).data;
+}
+
+/**
+ * The same query as `useAdminList` (same key, so the same cache entry), plus
+ * its loading and error state for components that must show them.
+ */
+export function useAdminListQuery<TApi, TView>(
+  key: readonly unknown[],
+  path: string,
+  map: (rows: TApi[]) => TView[],
+  enabled = true,
+): { data: TView[]; isPending: boolean; isError: boolean } {
   useRegisterQueryClient();
 
   const query = useQuery({
@@ -54,9 +67,10 @@ export function useAdminList<TApi, TView>(
 
   // `map` is redefined each render by callers, so memoise on the data itself.
   // The mapping is pure, which makes that safe.
-  const data = query.data;
+  const raw = query.data;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  return useMemo(() => (data ? map(data) : []), [data]);
+  const data = useMemo(() => (raw ? map(raw) : []), [raw]);
+  return { data, isPending: query.isPending, isError: query.isError };
 }
 
 /** Single-object variant, for endpoints that return one record. */

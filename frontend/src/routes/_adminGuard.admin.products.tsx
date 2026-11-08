@@ -31,8 +31,8 @@ import {
   UPLOAD_ACCEPT_ATTRIBUTE,
   type AdminProduct,
 } from "@/admin/services/products-admin";
+import { useCategoryOptions } from "@/admin/services/categories";
 import { errorMessage } from "@/lib/api/client";
-import type { Category } from "@/data/products";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_adminGuard/admin/products")({
@@ -41,17 +41,6 @@ export const Route = createFileRoute("/_adminGuard/admin/products")({
   }),
   component: ProductsPage,
 });
-
-const CATEGORIES: Category[] = [
-  "dresses",
-  "blouses",
-  "pants",
-  "skirts",
-  "tops",
-  "handbags",
-  "jewelry",
-  "accessories",
-];
 
 /**
  * Radix Select reserves an empty item value for "nothing selected" (its
@@ -71,6 +60,8 @@ const NUMBER_INPUT_CLASS =
 
 function ProductsPage() {
   const products = useAdminProducts();
+  // The categories Admin → Categories manages (same query), not a fixed list.
+  const { categories } = useCategoryOptions();
   const [query, setQuery] = useState("");
   const [filterCat, setFilterCat] = useState<string>("all");
   const [sort, setSort] = useState<"title" | "price" | "stock">("title");
@@ -122,9 +113,9 @@ function ProductsPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All categories</SelectItem>
-              {CATEGORIES.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
+              {categories.map((c) => (
+                <SelectItem key={c.id} value={c.key}>
+                  {c.label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -181,7 +172,7 @@ function ProductsPage() {
                       </div>
                     </div>
                   </td>
-                  <td className="capitalize">{p.category}</td>
+                  <td className="capitalize">{p.categoryLabel || p.category}</td>
                   <td>
                     ${p.price}
                     {p.discount > 0 && (
@@ -257,8 +248,17 @@ function ProductEditor({
   const [description, setDescription] = useState(initial?.description ?? "");
   // "" means no category selected — never auto-assigned. An existing
   // uncategorised product (category "") starts blank here too, rather than
-  // silently landing on the first item in CATEGORIES.
-  const [category, setCategory] = useState<Category | "">(initial?.category ?? "");
+  // silently landing on the first category in the list. The value is the
+  // category's slug, which is what the API resolves.
+  const [category, setCategory] = useState<string>(initial?.category ?? "");
+  const {
+    categories,
+    isPending: categoriesLoading,
+    isError: categoriesFailed,
+  } = useCategoryOptions();
+  // The product's own category stays selectable even before the list loads (or
+  // if it fails), so opening and saving a product never changes its category.
+  const keepCurrent = category !== "" && !categories.some((c) => c.key === category);
   // Price/Discount/Stock are optional: "" is a real, distinct state (the
   // field left blank), not a stand-in for 0. A brand-new product starts
   // blank; editing an existing one shows its real value, including 0.
@@ -379,18 +379,36 @@ function ProductEditor({
             <Label>Category</Label>
             <Select
               value={category || NO_CATEGORY}
-              onValueChange={(v) => setCategory(v === NO_CATEGORY ? "" : (v as Category))}
+              onValueChange={(v) => setCategory(v === NO_CATEGORY ? "" : v)}
             >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={NO_CATEGORY}>No category</SelectItem>
-                {CATEGORIES.map((c) => (
-                  <SelectItem key={c} value={c}>
-                    {c}
+                {keepCurrent && (
+                  <SelectItem value={category}>{initial?.categoryLabel || category}</SelectItem>
+                )}
+                {categories.map((c) => (
+                  <SelectItem key={c.id} value={c.key}>
+                    {c.label}
                   </SelectItem>
                 ))}
+                {categoriesLoading && (
+                  <SelectItem value="__loading__" disabled>
+                    Loading categories…
+                  </SelectItem>
+                )}
+                {categoriesFailed && (
+                  <SelectItem value="__failed__" disabled>
+                    Couldn't load categories
+                  </SelectItem>
+                )}
+                {!categoriesLoading && !categoriesFailed && categories.length === 0 && (
+                  <SelectItem value="__empty__" disabled>
+                    No categories yet — add one under Categories
+                  </SelectItem>
+                )}
               </SelectContent>
             </Select>
           </div>

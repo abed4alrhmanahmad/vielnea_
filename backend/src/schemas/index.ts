@@ -219,7 +219,18 @@ export const createProductSchema = z.object({
   measurements: z.array(measurementInputSchema).max(30).default([]),
 });
 
-export const updateProductSchema = createProductSchema.partial().refine(
+export const updateProductSchema = createProductSchema
+  .partial()
+  .extend({
+    // On an edit, a blank category is the admin choosing "No category", so it
+    // becomes null and clears category_id. (On create, blank simply means none
+    // was picked.) Absent still means "leave it unchanged".
+    category: z.preprocess(
+      (value) => (value === "" ? null : value),
+      z.string().trim().max(120).nullable().optional(),
+    ),
+  })
+  .refine(
   (data) => Object.keys(data).length > 0,
   { message: "Provide at least one field to update" },
 );

@@ -46,6 +46,11 @@ function requireUuid(value: string | undefined, label: string): string {
   return value;
 }
 
+function categoriesChanged(): void {
+  invalidateCategoriesCache();
+  invalidateProductsCache();
+}
+
 export const adminController = {
   // --- dashboard ----------------------------------------------------------
   stats: asyncHandler(async (_req, res) => {
@@ -129,6 +134,8 @@ export const adminController = {
   }),
 
   // --- categories ---------------------------------------------------------
+  // Every write calls categoriesChanged(): cached product listings embed each
+  // product's category slug and name, so they go stale with the category list.
   createCategory: asyncHandler(async (req, res) => {
     const input = categoryBodySchema.parse(req.body);
     const slug = input.slug ?? slugify(input.label);
@@ -137,7 +144,7 @@ export const adminController = {
       throw new ConflictError(`A category with the slug "${slug}" already exists`);
     }
     const category = await categoryRepository.create({ ...input, slug });
-    invalidateCategoriesCache();
+    categoriesChanged();
     sendData(res, category, 201);
   }),
 
@@ -154,7 +161,7 @@ export const adminController = {
 
     const category = await categoryRepository.update(id, input);
     if (!category) throw new NotFoundError("Category not found");
-    invalidateCategoriesCache();
+    categoriesChanged();
     sendData(res, category);
   }),
 
@@ -172,7 +179,7 @@ export const adminController = {
 
     const deleted = await categoryRepository.remove(id);
     if (!deleted) throw new NotFoundError("Category not found");
-    invalidateCategoriesCache();
+    categoriesChanged();
     sendData(res, { message: "Category deleted" });
   }),
 };

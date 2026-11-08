@@ -209,7 +209,10 @@ export const productService = {
       }
     }
 
-    if (input.category !== undefined) {
+    if (input.category === null) {
+      // "No category" chosen in the admin form: uncategorise the product.
+      assignments.push("category_id = NULL");
+    } else if (input.category !== undefined) {
       const categoryId = await categoryRepository.resolveId(input.category);
       if (!categoryId) throw new BadRequestError(`Unknown category: ${input.category}`);
       params.push(categoryId);
