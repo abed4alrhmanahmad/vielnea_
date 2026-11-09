@@ -20,7 +20,20 @@ types.setTypeParser(20, (value: string) => Number.parseInt(value, 10));
 export const pool = new Pool({
   ...env.db,
   ssl: { rejectUnauthorized: false },
-  max: 10,
+  // The session pooler allows 15 clients across every backend. Render runs
+  // the old and new instance side by side during a deploy, and 2 x (10 + the
+  // chat LISTEN client) overflowed it (EMAXCONNSESSION 500s on each deploy).
+  // 2 x (5 + 1) = 12 leaves 3 slots for a developer's local backend or scripts.
+  // Measured at production-like latency: 5 vs 6 made no difference to visitors
+  // or checkout, because identical concurrent cache misses share one query.
+  max: 5,
+  // The database is in Tokyo and the server in Frankfurt, so opening a
+  // connection (TCP + TLS + auth, several ~230ms round trips) cost the first
+  // visitor after a quiet spell ~2s. Production keeps two connections open
+  // instead of letting the idle timeout close them all; extras still close.
+  min: env.isProduction ? 2 : 0,
+  // Stops NATs and the pooler from silently dropping the kept connections.
+  keepAlive: true,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 15_000,
   application_name: "vielinea-api",

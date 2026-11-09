@@ -28,6 +28,13 @@ function resolveBaseUrl(base: string): string {
 
 export const API_BASE_URL: string = resolveBaseUrl(CONFIGURED_BASE_URL);
 
+/**
+ * The API base as the browser sees it, for URLs written into the HTML (image
+ * `srcSet`s). Unlike API_BASE_URL it is never rewritten to SSR's loopback
+ * origin, so server and client render the same markup.
+ */
+export const PUBLIC_API_BASE_URL: string = CONFIGURED_BASE_URL;
+
 const TOKEN_KEY = "v_token";
 
 export interface PaginationMeta {

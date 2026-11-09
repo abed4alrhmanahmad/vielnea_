@@ -93,6 +93,10 @@ function ProductPage() {
   const { product } = Route.useLoaderData() as { product: StoreProduct };
   const { addToCart, toggleWishlist, isWishlisted } = useStore();
   const [activeImg, setActiveImg] = useState(0);
+  // The crossfade plays only once the shopper picks another image. On first
+  // render `initial={false}` keeps the lead image (this page's LCP) visible in
+  // the server HTML instead of at opacity:0 until hydration.
+  const [imageSwitched, setImageSwitched] = useState(false);
   // Start on the first size that can be bought; a fully sold-out product keeps its first.
   const [size, setSize] = useState<string>(
     product.sizes.find((s) => isSizeAvailable(product, s)) ?? product.sizes[0] ?? "One Size",
@@ -136,7 +140,10 @@ function ProductPage() {
             {product.images.map((img, i) => (
               <button
                 key={i}
-                onClick={() => setActiveImg(i)}
+                onClick={() => {
+                  setActiveImg(i);
+                  setImageSwitched(true);
+                }}
                 aria-label={`Show image ${i + 1}`}
                 className={`aspect-square w-16 shrink-0 overflow-hidden rounded md:w-auto ${activeImg === i ? "ring-2 ring-primary" : "opacity-70"}`}
               >
@@ -152,7 +159,7 @@ function ProductPage() {
           </div>
           <motion.div
             key={activeImg}
-            initial={{ opacity: 0 }}
+            initial={imageSwitched ? { opacity: 0 } : false}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.4 }}
             className="relative flex-1 w-full aspect-[4/5] overflow-hidden rounded-lg bg-secondary"

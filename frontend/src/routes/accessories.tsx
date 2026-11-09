@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { z } from "zod";
-import { motion } from "framer-motion";
 import { Search } from "lucide-react";
 import { Shell } from "@/components/layout/shell";
 import accessoriesHeroImg from "@/assets/vielinea-accessories-hero.webp";
@@ -102,11 +101,12 @@ function AccessoriesPage() {
   return (
     <Shell>
       <div className="container-luxe pt-8">
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.9, ease: "easeOut" }}
-          className="relative isolate mx-auto w-full max-w-[1120px] overflow-hidden rounded-lg aspect-[4/3] sm:aspect-[16/9] md:aspect-[21/9]"
+        {/* CSS entrance, same as the Framer Motion one it replaces: that one
+            server-rendered the frame, and its LCP image, at opacity:0 until
+            hydration. See Shell. */}
+        <div
+          style={{ "--enter-from": "12px", "--enter-duration": "900ms" } as CSSProperties}
+          className="enter-rise motion-reduce:animate-none relative isolate mx-auto w-full max-w-[1120px] overflow-hidden rounded-lg aspect-[4/3] sm:aspect-[16/9] md:aspect-[21/9]"
         >
           <img
             src={accessoriesHeroImg}
@@ -123,7 +123,7 @@ function AccessoriesPage() {
             // frame a centred crop cuts the last one off, so phones crop right.
             className="absolute inset-0 size-full object-cover object-right sm:object-center"
           />
-        </motion.div>
+        </div>
       </div>
 
       <div className="container-luxe pt-8 pb-6">

@@ -5,6 +5,7 @@ import {
 } from "../repositories/accessory.repository.js";
 import { BadRequestError, ConflictError, NotFoundError } from "../lib/errors.js";
 import { slugify } from "../utils/slug.js";
+import { cached, invalidateCache } from "../lib/cache.js";
 import type { Accessory } from "../types/models.js";
 import type { z } from "zod";
 import type {
@@ -15,6 +16,12 @@ import type {
 
 type CreateInput = z.infer<typeof createAccessorySchema>;
 type UpdateInput = z.infer<typeof updateAccessorySchema>;
+
+// Same policy as product listings (product.service.ts): every write below
+// invalidates, so the TTL is only a safety net. The homepage and the
+// accessories page both read this list; uncached it took ~1.1s on live.
+const LIST_CACHE_TTL_MS = 5 * 60_000;
+const LIST_CACHE_PREFIX = "accessories:list:";
 
 /**
  * Derives a unique slug from the name, appending -2, -3, ... on collision.
@@ -63,7 +70,9 @@ export const accessoryService = {
     ) {
       throw new BadRequestError("minPrice cannot be greater than maxPrice");
     }
-    return accessoryRepository.findMany(query);
+    return cached(`${LIST_CACHE_PREFIX}${JSON.stringify(query)}`, LIST_CACHE_TTL_MS, () =>
+      accessoryRepository.findMany(query),
+    );
   },
 
   async getByIdOrSlug(idOrSlug: string): Promise<Accessory> {
@@ -101,7 +110,12 @@ export const accessoryService = {
     const id = result.rows[0]?.id;
     if (!id) throw new Error("Insert returned no id");
 
-    if (input.images.length > 0) await replaceImages(id, input.images, input.name);
+    // In finally: the row exists even if the images below fail.
+    try {
+      if (input.images.length > 0) await replaceImages(id, input.images, input.name);
+    } finally {
+      invalidateCache(LIST_CACHE_PREFIX);
+    }
 
     return this.getByIdOrSlug(id);
   },
@@ -139,18 +153,23 @@ export const accessoryService = {
       assignments.push(`slug = $${params.length}`);
     }
 
-    if (assignments.length > 0) {
-      params.push(existing.id);
-      await pool.query(
-        `UPDATE public.accessories SET ${assignments.join(", ")} WHERE id = $${params.length}`,
-        params,
-      );
-    }
+    try {
+      if (assignments.length > 0) {
+        params.push(existing.id);
+        await pool.query(
+          `UPDATE public.accessories SET ${assignments.join(", ")} WHERE id = $${params.length}`,
+          params,
+        );
+      }
 
-    // Images are replaced wholesale only when explicitly provided, so a patch
-    // that omits them leaves the existing gallery untouched.
-    if (input.images) {
-      await replaceImages(existing.id, input.images, input.name ?? existing.name);
+      // Images are replaced wholesale only when explicitly provided, so a patch
+      // that omits them leaves the existing gallery untouched.
+      if (input.images) {
+        await replaceImages(existing.id, input.images, input.name ?? existing.name);
+      }
+    } finally {
+      // Also on failure: the UPDATE may have landed before the images failed.
+      invalidateCache(LIST_CACHE_PREFIX);
     }
 
     return this.getByIdOrSlug(existing.id);
@@ -159,6 +178,7 @@ export const accessoryService = {
   async remove(idOrSlug: string): Promise<void> {
     const accessory = await this.getByIdOrSlug(idOrSlug);
     const deleted = await accessoryRepository.deleteById(accessory.id);
+    invalidateCache(LIST_CACHE_PREFIX);
     if (!deleted) throw new NotFoundError("Accessory not found");
   },
 };

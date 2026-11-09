@@ -24,6 +24,9 @@ const LIST_CACHE_TTL_MS = 5 * 60_000;
  */
 export function invalidateProductsCache(): void {
   invalidateCache("products:list:");
+  // Product pages (detail + related) carry the same price, stock and rating.
+  invalidateCache("products:detail:");
+  invalidateCache("products:related:");
   // The cached category list (category.controller.ts) carries each category's
   // productCount, so adding, moving or deleting a product changes it too.
   invalidateCache("categories:list");
@@ -74,15 +77,32 @@ export const productService = {
    * so editing or deleting a draft never 404s on itself.
    */
   async getByIdOrSlug(idOrSlug: string, options: { includeDraft?: boolean } = {}): Promise<Product> {
-    const product = await productRepository.findByIdOrSlug(idOrSlug, options);
-    if (!product) throw new NotFoundError("Product not found");
-    return product;
+    // Public reads only: admin paths (includeDraft) always read the database.
+    // A miss throws inside the fetch, and rejections are never cached, so
+    // made-up slugs can't grow the cache.
+    if (options.includeDraft) {
+      const product = await productRepository.findByIdOrSlug(idOrSlug, options);
+      if (!product) throw new NotFoundError("Product not found");
+      return product;
+    }
+    return cached(`products:detail:${idOrSlug}`, LIST_CACHE_TTL_MS, async () => {
+      const product = await productRepository.findByIdOrSlug(idOrSlug, options);
+      if (!product) throw new NotFoundError("Product not found");
+      return product;
+    });
   },
 
   async getBySlug(slug: string, options: { includeDraft?: boolean } = {}): Promise<Product> {
-    const product = await productRepository.findBySlug(slug, options);
-    if (!product) throw new NotFoundError("Product not found");
-    return product;
+    if (options.includeDraft) {
+      const product = await productRepository.findBySlug(slug, options);
+      if (!product) throw new NotFoundError("Product not found");
+      return product;
+    }
+    return cached(`products:detail:slug:${slug}`, LIST_CACHE_TTL_MS, async () => {
+      const product = await productRepository.findBySlug(slug, options);
+      if (!product) throw new NotFoundError("Product not found");
+      return product;
+    });
   },
 
   async related(idOrSlug: string, limit = 4): Promise<Product[]> {
@@ -90,7 +110,12 @@ export const productService = {
     // No category to match against — "" is not a real category_id (a uuid
     // column), so short-circuit rather than send it into the query.
     if (!product.categoryId) return [];
-    return productRepository.findRelated(product.id, product.categoryId, limit);
+    const { id, categoryId } = product;
+    const fetchRelated = () => productRepository.findRelated(id, categoryId, limit);
+    // `limit` is raw query input; only the storefront's small values get a
+    // cache slot, so arbitrary ones can't grow the cache.
+    if (limit < 1 || limit > 12) return fetchRelated();
+    return cached(`products:related:${id}:${limit}`, LIST_CACHE_TTL_MS, fetchRelated);
   },
 
   async create(input: CreateInput): Promise<Product> {

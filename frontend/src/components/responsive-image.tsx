@@ -1,4 +1,5 @@
 import { IMAGE_VARIANTS } from "@/lib/image-variants";
+import { remoteImageSrcSet } from "@/lib/remote-image";
 
 /**
  * Everything a plain `<img>` takes, minus the two props this component owns.
@@ -24,9 +25,12 @@ type Props = Omit<React.ImgHTMLAttributes<HTMLImageElement>, "srcSet" | "sizes">
  *    whose `<source>` offers the sibling `-<w>.webp` files, letting the browser
  *    pick by viewport and DPR. The `<img>` keeps the original URL, so a browser
  *    without WebP support downloads exactly what it downloads today.
- *  - **not listed** (every admin upload, including absolute Supabase Storage
- *    URLs) — renders the same bare `<img>` the call site used before. No 404s,
- *    no broken images, no change in behaviour.
+ *  - **an admin upload** (an absolute Supabase Storage URL) — renders an `<img>`
+ *    whose `srcSet` offers resized WebP copies from the backend's image route
+ *    (lib/remote-image.ts), with the original kept as `src`. The route
+ *    redirects to the original whenever it can't resize, so nothing breaks.
+ *  - **anything else** — renders the same bare `<img>` the call site used
+ *    before. No 404s, no broken images, no change in behaviour.
  *
  * The `<picture>` is `display: contents`, so it leaves no box of its own: the
  * `<img>` stays the direct layout child of whatever wrapper the call site has,
@@ -49,7 +53,14 @@ export function ResponsiveImage({ src, sizes, ...imgProps }: Props) {
     );
   }
 
-  if (!variants) return <img src={src} {...imgProps} />;
+  if (!variants) {
+    const remoteSrcSet = remoteImageSrcSet(src);
+    return remoteSrcSet ? (
+      <img src={src} srcSet={remoteSrcSet} sizes={sizes} {...imgProps} />
+    ) : (
+      <img src={src} {...imgProps} />
+    );
+  }
 
   const stem = src.replace(/\.(jpe?g|png|webp)$/i, "");
   const srcSet = variants.widths.map((w) => `${stem}-${w}.webp ${w}w`).join(", ");

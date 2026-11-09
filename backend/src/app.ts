@@ -7,6 +7,7 @@ import routes from "./routes/index.js";
 import { seoController } from "./controllers/seo.controller.js";
 import { errorHandler, notFoundHandler } from "./middleware/error.js";
 import { generalLimiter } from "./middleware/rate-limit.js";
+import { resizedImageHandler } from "./lib/image-resize.js";
 import { env } from "./config/env.js";
 import type { Frontend } from "./lib/frontend.js";
 
@@ -75,11 +76,21 @@ export function createApp({ frontend }: AppOptions = {}): express.Express {
         setHeaders(res, filePath) {
           if (filePath.includes(`${path.sep}assets${path.sep}`)) {
             res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+          } else {
+            // Unhashed files (/images/products/*, favicons) change only with a
+            // deploy. A day, instead of revalidating every image on every view.
+            res.setHeader("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
           }
         },
       }),
     );
   }
+
+  // Resized catalogue images (lib/image-resize.ts). Ahead of rate limiting for
+  // the same reason as static files: a product grid is dozens of requests.
+  app.get("/api/img/:width/:ref/:object", (req, res, next) => {
+    resizedImageHandler(req, res).catch(next);
+  });
 
   app.use(express.json({ limit: "100kb" }));
   app.use(express.urlencoded({ extended: true, limit: "100kb" }));

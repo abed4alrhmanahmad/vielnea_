@@ -1,4 +1,4 @@
-import { motion } from "framer-motion";
+import type { CSSProperties } from "react";
 import shopHeroImg from "@/assets/vielinea-shop-hero.jpg";
 import shopHeroWebp from "@/assets/vielinea-shop-hero.webp";
 
@@ -29,11 +29,13 @@ export function ShopHero({ targetId }: ShopHeroProps) {
   return (
     <section className="bg-secondary/40" aria-label="Vielinea collection">
       <div className="container-luxe">
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.9, ease: "easeOut" }}
-          className="relative isolate mx-auto flex w-full max-w-[1120px] flex-col overflow-hidden rounded-lg my-6 md:my-10 md:block md:aspect-[7/5] lg:aspect-[3/2]"
+        {/* CSS entrances (same offsets, durations, delays and ease-out as the
+            Framer Motion ones they replace): the JS-driven versions
+            server-rendered this frame, and the LCP image in it, at opacity:0
+            until the bundle had hydrated. See Shell. */}
+        <div
+          style={{ "--enter-from": "12px", "--enter-duration": "900ms" } as CSSProperties}
+          className="enter-rise motion-reduce:animate-none relative isolate mx-auto flex w-full max-w-[1120px] flex-col overflow-hidden rounded-lg my-6 md:my-10 md:block md:aspect-[7/5] lg:aspect-[3/2]"
         >
           {/* This is the shop page's LCP. It is not resized per breakpoint on
               purpose: the frame is portrait on phones and `object-cover` then
@@ -63,41 +65,33 @@ export function ShopHero({ targetId }: ShopHeroProps) {
           <div className="absolute inset-0 hidden md:block md:bg-gradient-to-r md:from-background/92 md:from-0% md:via-background/55 md:via-35% md:to-transparent md:to-64%" />
 
           <div className="relative z-10 flex h-full flex-col justify-end md:justify-center bg-background/70 md:bg-transparent px-7 py-8 sm:px-9 md:px-12 lg:px-16 md:py-0 max-w-none md:max-w-[30rem] lg:max-w-[34rem]">
-            <motion.p
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.2, ease: "easeOut" }}
-              className="text-[11px] md:text-xs uppercase tracking-[0.35em] text-primary"
+            <p
+              style={{ "--enter-from": "12px", "--enter-duration": "700ms", "--enter-delay": "200ms" } as CSSProperties}
+              className="enter-rise motion-reduce:animate-none text-[11px] md:text-xs uppercase tracking-[0.35em] text-primary"
             >
               The Autumn Edit
-            </motion.p>
+            </p>
 
-            <motion.h1
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.35, ease: "easeOut" }}
-              className="font-display text-4xl md:text-5xl lg:text-6xl leading-[1.05] text-foreground mt-4 md:mt-5"
+            <h1
+              style={{ "--enter-from": "16px", "--enter-duration": "700ms", "--enter-delay": "350ms" } as CSSProperties}
+              className="enter-rise motion-reduce:animate-none font-display text-4xl md:text-5xl lg:text-6xl leading-[1.05] text-foreground mt-4 md:mt-5"
             >
               The Vielinea
               <br />
               Collection
-            </motion.h1>
+            </h1>
 
-            <motion.p
-              initial={{ opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.5, ease: "easeOut" }}
-              className="mt-5 md:mt-6 text-sm md:text-base text-foreground/80 leading-relaxed max-w-[26rem]"
+            <p
+              style={{ "--enter-from": "14px", "--enter-duration": "700ms", "--enter-delay": "500ms" } as CSSProperties}
+              className="enter-rise motion-reduce:animate-none mt-5 md:mt-6 text-sm md:text-base text-foreground/80 leading-relaxed max-w-[26rem]"
             >
               Considered silhouettes, quiet detail and fabrics chosen to last — pieces made to be
               worn long after the season ends.
-            </motion.p>
+            </p>
 
-            <motion.div
-              initial={{ opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.65, ease: "easeOut" }}
-              className="mt-8 md:mt-10"
+            <div
+              style={{ "--enter-from": "14px", "--enter-duration": "700ms", "--enter-delay": "650ms" } as CSSProperties}
+              className="enter-rise motion-reduce:animate-none mt-8 md:mt-10"
             >
               <a
                 href={`#${targetId}`}
@@ -106,9 +100,9 @@ export function ShopHero({ targetId }: ShopHeroProps) {
               >
                 Explore Collection
               </a>
-            </motion.div>
+            </div>
           </div>
-        </motion.div>
+        </div>
       </div>
     </section>
   );
