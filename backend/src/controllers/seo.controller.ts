@@ -22,7 +22,8 @@ const CACHE_TTL_MS = 10 * 60_000;
  * their pages are noindex on the frontend.
  */
 const COMPLETE_PRODUCT = `EXISTS (SELECT 1 FROM public.product_images pi WHERE pi.product_id = p.id)
-          AND (p.price * (1 - p.discount / 100.0)) > 0`;
+          AND (p.price * (1 - p.discount / 100.0)) > 0
+          AND p.is_published`;
 
 function xmlEscape(value: string): string {
   return value
@@ -62,7 +63,7 @@ async function buildSitemap(): Promise<string> {
       `SELECT c.slug, max(p.updated_at) AS updated_at
          FROM public.categories c
          JOIN public.products p ON p.category_id = c.id
-        WHERE ${COMPLETE_PRODUCT}
+        WHERE ${COMPLETE_PRODUCT} AND c.is_active
         GROUP BY c.slug
         ORDER BY c.slug`,
     ),

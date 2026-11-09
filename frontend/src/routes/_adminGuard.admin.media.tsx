@@ -4,6 +4,8 @@ import { PageHeader } from "@/admin/components/admin-shell";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useMedia, mediaService, type MediaType } from "@/admin/services/misc";
+import { uploadProductImage } from "@/admin/services/products-admin";
+import { errorMessage } from "@/lib/api/client";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_adminGuard/admin/media")({
@@ -15,13 +17,19 @@ export const Route = createFileRoute("/_adminGuard/admin/media")({
 
 function AdminMediaPage() {
   const media = useMedia();
-  function upload(file: File, type: MediaType) {
-    const reader = new FileReader();
-    reader.onload = () => {
-      mediaService.add({ name: file.name, url: String(reader.result), type });
-      toast.success("Uploaded");
-    };
-    reader.readAsDataURL(file);
+  // The file goes to storage first (the same upload every other admin image
+  // uses); the library row stores only the returned URL. Posting the file
+  // itself as a data: URL was always rejected — the API caps url at 500 chars.
+  async function upload(file: File, type: MediaType) {
+    let url: string;
+    try {
+      url = await uploadProductImage(file);
+    } catch (error) {
+      toast.error(errorMessage(error, "Could not upload the image"));
+      return;
+    }
+    // add() reports its own success/failure once the request resolves.
+    mediaService.add({ name: file.name, url, type });
   }
   const types: MediaType[] = ["product", "hero", "banner", "category"];
   return (
@@ -38,7 +46,9 @@ function AdminMediaPage() {
               className="hidden"
               onChange={(e) => {
                 const f = e.target.files?.[0];
-                if (f) upload(f, "product");
+                // Cleared so picking the same file again still fires.
+                e.target.value = "";
+                if (f) void upload(f, "product");
               }}
             />
           </label>
@@ -61,7 +71,8 @@ function AdminMediaPage() {
                     className="hidden"
                     onChange={(e) => {
                       const f = e.target.files?.[0];
-                      if (f) upload(f, t);
+                      e.target.value = "";
+                      if (f) void upload(f, t);
                     }}
                   />
                 </label>
@@ -77,10 +88,10 @@ function AdminMediaPage() {
                     <Button
                       size="icon"
                       variant="secondary"
-                      className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 size-6"
+                      // Always visible on touch screens, where there is no hover.
+                      className="absolute top-1 right-1 sm:opacity-0 sm:group-hover:opacity-100 size-6"
                       onClick={() => {
-                        mediaService.remove(m.id);
-                        toast("Deleted");
+                        if (confirm(`Delete ${m.name}?`)) mediaService.remove(m.id);
                       }}
                     >
                       <Trash2 className="size-3" />

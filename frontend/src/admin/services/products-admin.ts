@@ -135,9 +135,13 @@ function toAdminProduct(api: ApiProduct): AdminProduct {
   return {
     ...base,
     featured: api.isFeatured,
-    published: true,
+    published: api.isPublished,
+    // The storefront shows images[0], so the stored first image IS the main one.
     mainImageIndex: 0,
     measurementsBySize: Object.fromEntries(api.measurementDetails.map((m) => [m.size, m.labels])),
+    // Per-size stock as stored. Without it every save re-spread the total
+    // evenly across sizes, inventing stock for sold-out sizes.
+    sizeStock: Object.fromEntries(api.sizeDetails.map((s) => [s.size, s.stock])),
   };
 }
 
@@ -197,6 +201,7 @@ function toApiPayload(input: Partial<AdminProduct>): Record<string, unknown> {
   if (input.isBestSeller !== undefined) payload["isBestSeller"] = Boolean(input.isBestSeller);
   if (input.hasGift !== undefined) payload["hasGift"] = Boolean(input.hasGift);
   if (input.featured !== undefined) payload["isFeatured"] = Boolean(input.featured);
+  if (input.published !== undefined) payload["isPublished"] = Boolean(input.published);
 
   if (input.model) {
     payload["modelHeight"] = input.model.height || null;
@@ -205,7 +210,14 @@ function toApiPayload(input: Partial<AdminProduct>): Record<string, unknown> {
   }
 
   if (input.images) {
-    payload["images"] = input.images
+    // "Set as main" is persisted as order: the main image is stored first,
+    // which is the one the shop card and product page lead with.
+    const main = input.mainImageIndex ?? 0;
+    const ordered =
+      main > 0 && main < input.images.length
+        ? [input.images[main]!, ...input.images.filter((_, i) => i !== main)]
+        : input.images;
+    payload["images"] = ordered
       // Blank slots would be rejected by the API's min-length rule.
       .filter((imageUrl) => typeof imageUrl === "string" && imageUrl.trim().length > 0)
       .map((imageUrl) => ({
@@ -262,7 +274,8 @@ export const productsService = {
   },
 
   async fetch(): Promise<AdminProduct[]> {
-    const rows = await apiClient.get<ApiProduct[]>("/products", { params: { limit: 60 } });
+    // Admin-only listing: includes drafts, which the public /products hides.
+    const rows = await apiClient.get<ApiProduct[]>("/admin/products", { params: { limit: 60 } });
     return rows.map(toAdminProduct);
   },
 
@@ -313,8 +326,11 @@ export const productsService = {
 };
 
 export function useAdminProducts(): AdminProduct[] {
-  return useAdminList<ApiProduct, AdminProduct>(adminKeys.products, "/products?limit=60", (rows) =>
-    rows.map(toAdminProduct),
+  // Admin-only listing: includes drafts, which the public /products hides.
+  return useAdminList<ApiProduct, AdminProduct>(
+    adminKeys.products,
+    "/admin/products?limit=60",
+    (rows) => rows.map(toAdminProduct),
   );
 }
 

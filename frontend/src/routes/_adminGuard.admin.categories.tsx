@@ -89,10 +89,9 @@ function CategoriesPage() {
                       size="sm"
                       variant="ghost"
                       onClick={() => {
-                        if (confirm(`Delete ${c.label}?`)) {
-                          categoriesService.remove(c.id);
-                          toast.success("Deleted");
-                        }
+                        // remove() reports its own success/failure once the
+                        // request resolves (a category with products is refused).
+                        if (confirm(`Delete ${c.label}?`)) categoriesService.remove(c.id);
                       }}
                     >
                       <Trash2 className="size-3.5" />
@@ -141,7 +140,7 @@ function CategoryEditor({
         imageUrl,
         enabled,
       });
-    toast.success("Saved");
+    // The service reports success or failure itself once the request resolves.
     onClose();
   }
   return (

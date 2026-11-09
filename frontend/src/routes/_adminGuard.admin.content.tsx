@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { PageHeader } from "@/admin/components/admin-shell";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,8 +14,7 @@ import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import {
   useCmsSettings,
   useCmsTestimonials,
-  useSaveSettingGroup,
-  useSaveStoreSettings,
+  useSaveContent,
   useTestimonialMutations,
   type AdminSiteSettings,
   type Testimonial,
@@ -47,8 +47,7 @@ function Field({
 
 function ContentPage() {
   const { data, isPending } = useCmsSettings();
-  const saveGroup = useSaveSettingGroup();
-  const saveStore = useSaveStoreSettings();
+  const save = useSaveContent();
 
   const [draft, setDraft] = useState<AdminSiteSettings | null>(null);
   useEffect(() => {
@@ -71,7 +70,11 @@ function ContentPage() {
     setDraft((prev) => (prev ? { ...prev, [key]: { ...prev[key], ...value } } : prev));
 
   const saveAll = () => {
+    if (!data) return;
     // Each group is a document in site_content; the store row is separate.
+    // Only what differs from the saved copy is sent.
+    const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+    const groups: Record<string, unknown> = {};
     for (const key of [
       "announcement",
       "header",
@@ -80,9 +83,14 @@ function ContentPage() {
       "contact",
       "newsletter",
     ] as const) {
-      saveGroup.mutate({ key, value: draft[key] });
+      if (!same(draft[key], data[key])) groups[key] = draft[key];
     }
-    saveStore.mutate(draft.store);
+    const store = same(draft.store, data.store) ? undefined : draft.store;
+    if (Object.keys(groups).length === 0 && !store) {
+      toast("No changes to save");
+      return;
+    }
+    save.mutate({ groups, store });
   };
 
   return (
@@ -97,8 +105,8 @@ function ContentPage() {
                 Preview
               </a>
             </Button>
-            <Button onClick={saveAll} disabled={saveGroup.isPending || saveStore.isPending}>
-              {saveGroup.isPending || saveStore.isPending ? "Saving…" : "Save"}
+            <Button onClick={saveAll} disabled={save.isPending}>
+              {save.isPending ? "Saving…" : "Save"}
             </Button>
           </>
         }
@@ -524,7 +532,13 @@ function TestimonialsEditor() {
                   {t.isActive ? "Visible on the homepage" : "Hidden"}
                 </span>
               </div>
-              <Button size="sm" variant="outline" onClick={() => remove.mutate(t.id)}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  if (confirm(`Delete the testimonial from ${t.name}?`)) remove.mutate(t.id);
+                }}
+              >
                 <Trash2 className="size-3.5" /> Delete
               </Button>
             </div>

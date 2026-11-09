@@ -17,6 +17,8 @@ export const productController = {
     sendPaginated(res, products, buildPagination(total, query.page, query.limit));
   }),
 
+  // Public: getByIdOrSlug/getBySlug default to published-only, so a draft
+  // 404s here exactly like a product that doesn't exist.
   getById: asyncHandler(async (req, res) => {
     const { id } = idParamSchema.parse(req.params);
     const product = await productService.getByIdOrSlug(id);

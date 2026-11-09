@@ -24,7 +24,8 @@ export const categoryController = {
 
   getById: asyncHandler(async (req, res) => {
     const { id } = idParamSchema.parse(req.params);
-    const category = await categoryRepository.findByIdOrSlug(id);
+    // A disabled category is not part of the storefront.
+    const category = await categoryRepository.findByIdOrSlug(id, { includeInactive: false });
     if (!category) throw new NotFoundError("Category not found");
     sendData(res, category);
   }),

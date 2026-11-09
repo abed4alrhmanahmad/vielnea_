@@ -3,11 +3,12 @@ import { adminRepository } from "../repositories/admin.repository.js";
 import { orderRepository } from "../repositories/order.repository.js";
 import { categoryRepository } from "../repositories/category.repository.js";
 import { invalidateCategoriesCache } from "./category.controller.js";
-import { invalidateProductsCache } from "../services/product.service.js";
+import { invalidateProductsCache, productService } from "../services/product.service.js";
 import { BadRequestError, ConflictError, NotFoundError } from "../lib/errors.js";
 import { isUuid, slugify } from "../utils/slug.js";
 import {
   adminListQuerySchema,
+  productQuerySchema,
   updateOrderStatusSchema,
   updatePaymentStatusSchema,
 } from "../schemas/index.js";
@@ -25,6 +26,7 @@ const categoryBodySchema = z.object({
   description: z.string().trim().max(500).nullable().optional(),
   imageUrl: z.string().trim().max(500).nullable().optional(),
   sortOrder: z.coerce.number().int().min(0).max(10_000).optional(),
+  isActive: z.boolean().optional(),
 });
 
 const categoryUpdateSchema = categoryBodySchema.partial().refine(
@@ -60,6 +62,14 @@ export const adminController = {
       adminRepository.revenueByDay(30),
     ]);
     sendData(res, { ...stats, topProducts, revenueByDay });
+  }),
+
+  // --- products -------------------------------------------------------------
+  /** Every product, drafts included — the public /products list hides those. */
+  listProducts: asyncHandler(async (req, res) => {
+    const query = productQuerySchema.parse(req.query);
+    const { products, total } = await productService.adminList(query);
+    sendPaginated(res, products, buildPagination(total, query.page, query.limit));
   }),
 
   // --- orders -------------------------------------------------------------
@@ -136,6 +146,11 @@ export const adminController = {
   // --- categories ---------------------------------------------------------
   // Every write calls categoriesChanged(): cached product listings embed each
   // product's category slug and name, so they go stale with the category list.
+  /** Every category, disabled ones included (the public list hides those). */
+  listCategories: asyncHandler(async (_req, res) => {
+    sendData(res, await categoryRepository.findAll({ includeInactive: true }));
+  }),
+
   createCategory: asyncHandler(async (req, res) => {
     const input = categoryBodySchema.parse(req.body);
     const slug = input.slug ?? slugify(input.label);

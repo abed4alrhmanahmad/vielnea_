@@ -16,6 +16,8 @@ export interface Category {
   description: string | null;
   imageUrl: string | null;
   sortOrder: number;
+  /** False hides the category from the storefront; admin still lists it. */
+  isActive: boolean;
   productCount?: number;
 }
 
@@ -65,6 +67,8 @@ export interface Product {
   isBestSeller: boolean;
   isNewArrival: boolean;
   hasGift: boolean;
+  /** False = draft: hidden from every public read, admin still sees it. */
+  isPublished: boolean;
   modelHeight: string | null;
   modelWeight: string | null;
   wearingSize: string | null;

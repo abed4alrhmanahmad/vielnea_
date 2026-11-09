@@ -116,6 +116,7 @@ function ProductsPage() {
               {categories.map((c) => (
                 <SelectItem key={c.id} value={c.key}>
                   {c.label}
+                  {!c.enabled && " (hidden)"}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -266,6 +267,15 @@ function ProductEditor({
   const [discount, setDiscount] = useState<number | "">(initial?.discount ?? "");
   const [stock, setStock] = useState<number | "">(initial?.stock ?? "");
   const [sizes, setSizes] = useState((initial?.sizes ?? []).join(", "));
+  // Checkout sells min(size stock, product stock), so a sized product's stock
+  // is entered per size and the product total is their sum.
+  const [sizeStock, setSizeStock] = useState<Record<string, number | "">>(initial?.sizeStock ?? {});
+  const sizeList = sizes
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const sizedTotal = sizeList.reduce((sum, s) => sum + (Number(sizeStock[s]) || 0), 0);
+  const [isNewArrival, setIsNewArrival] = useState(!!initial?.isNew);
   const [images, setImages] = useState<string[]>(initial?.images ?? []);
   const [mainImageIndex, setMainImageIndex] = useState(initial?.mainImageIndex ?? 0);
   const [featured, setFeatured] = useState(!!initial?.featured);
@@ -325,23 +335,24 @@ function ProductEditor({
       // means "omit", not this form.
       price,
       discount,
-      stock,
+      stock: sizeList.length > 0 ? sizedTotal : stock,
+      sizeStock:
+        sizeList.length > 0
+          ? Object.fromEntries(sizeList.map((s) => [s, Number(sizeStock[s]) || 0]))
+          : undefined,
       rating: initial?.rating ?? 5,
       reviewCount: initial?.reviewCount ?? 0,
       // No uploaded images is a valid product now — nothing stands in for
       // a real photo.
       images,
-      sizes: sizes
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean),
+      sizes: sizeList,
       measurements: meas,
       model: {
         height: modelHeight,
         weight: initial?.model.weight ?? "",
         wearingSize: modelWearing,
       },
-      isNew: initial?.isNew,
+      isNew: isNewArrival,
       isBestSeller: initial?.isBestSeller,
       hasGift: initial?.hasGift,
       featured,
@@ -392,6 +403,7 @@ function ProductEditor({
                 {categories.map((c) => (
                   <SelectItem key={c.id} value={c.key}>
                     {c.label}
+                    {!c.enabled && " (hidden)"}
                   </SelectItem>
                 ))}
                 {categoriesLoading && (
@@ -448,21 +460,53 @@ function ProductEditor({
             />
           </div>
           <div>
-            <Label>Stock</Label>
-            <Input
-              type="number"
-              inputMode="numeric"
-              step={1}
-              min={0}
-              placeholder="Not set"
-              value={stock}
-              onChange={(e) => setStock(e.target.value === "" ? "" : Number(e.target.value))}
-              className={NUMBER_INPUT_CLASS}
-            />
+            <Label>Stock{sizeList.length > 0 ? " (total of the sizes)" : ""}</Label>
+            {sizeList.length > 0 ? (
+              <Input value={sizedTotal} readOnly disabled className={NUMBER_INPUT_CLASS} />
+            ) : (
+              <Input
+                type="number"
+                inputMode="numeric"
+                step={1}
+                min={0}
+                placeholder="Not set"
+                value={stock}
+                onChange={(e) => setStock(e.target.value === "" ? "" : Number(e.target.value))}
+                className={NUMBER_INPUT_CLASS}
+              />
+            )}
           </div>
+          {sizeList.length > 0 && (
+            <div className="md:col-span-2">
+              <Label>Stock per size</Label>
+              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mt-1">
+                {sizeList.map((s) => (
+                  <label key={s} className="text-xs text-muted-foreground space-y-1">
+                    <span>{s}</span>
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      step={1}
+                      min={0}
+                      placeholder="0"
+                      aria-label={`Stock for size ${s}`}
+                      value={sizeStock[s] ?? ""}
+                      onChange={(e) =>
+                        setSizeStock((prev) => ({
+                          ...prev,
+                          [s]: e.target.value === "" ? "" : Number(e.target.value),
+                        }))
+                      }
+                      className={NUMBER_INPUT_CLASS}
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
           <div>
             <Label>Status</Label>
-            <div className="flex items-center gap-4 h-10">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 min-h-10">
               <label className="flex items-center gap-2 text-sm">
                 <Switch checked={published} onCheckedChange={setPublished} />
                 Published
@@ -470,6 +514,11 @@ function ProductEditor({
               <label className="flex items-center gap-2 text-sm">
                 <Switch checked={featured} onCheckedChange={setFeatured} />
                 Featured
+              </label>
+              {/* Drives the "New" badge on the shop card. */}
+              <label className="flex items-center gap-2 text-sm">
+                <Switch checked={isNewArrival} onCheckedChange={setIsNewArrival} />
+                New arrival
               </label>
             </div>
           </div>
@@ -547,7 +596,12 @@ function ProductEditor({
                     </button>
                     <button
                       className="bg-background/80 text-xs px-1"
-                      onClick={() => setImages(images.filter((_, j) => j !== i))}
+                      onClick={() => {
+                        setImages(images.filter((_, j) => j !== i));
+                        // Keep "main" on the same picture after the list shifts.
+                        if (i === mainImageIndex) setMainImageIndex(0);
+                        else if (i < mainImageIndex) setMainImageIndex(mainImageIndex - 1);
+                      }}
                     >
                       ×
                     </button>

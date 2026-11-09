@@ -24,6 +24,9 @@ const LIST_CACHE_TTL_MS = 5 * 60_000;
  */
 export function invalidateProductsCache(): void {
   invalidateCache("products:list:");
+  // The cached category list (category.controller.ts) carries each category's
+  // productCount, so adding, moving or deleting a product changes it too.
+  invalidateCache("categories:list");
 }
 import type { Product } from "../types/models.js";
 import type { ProductQuery } from "../schemas/index.js";
@@ -50,19 +53,34 @@ export const productService = {
       throw new BadRequestError("minPrice cannot be greater than maxPrice");
     }
     // Keyed on the exact query shape, so distinct filters/sorts/pages each
-    // get their own cache slot instead of colliding.
+    // get their own cache slot instead of colliding. Public only — drafts
+    // excluded (productRepository.findMany's default).
     const key = `products:list:${JSON.stringify(query)}`;
     return cached(key, LIST_CACHE_TTL_MS, () => productRepository.findMany(query));
   },
 
-  async getByIdOrSlug(idOrSlug: string): Promise<Product> {
-    const product = await productRepository.findByIdOrSlug(idOrSlug);
+  /**
+   * The admin Products/Inventory listing: every product, drafts included.
+   * Not cached — admin traffic is low, and a save must show up immediately.
+   */
+  async adminList(query: ProductQuery): Promise<ProductListResult> {
+    return productRepository.findMany(query, { includeDraft: true });
+  },
+
+  /**
+   * `includeDraft` defaults to false, so this 404s on a draft for every
+   * public caller (the storefront product page, the public API). The three
+   * admin write paths below (create/update/remove) pass `true` explicitly,
+   * so editing or deleting a draft never 404s on itself.
+   */
+  async getByIdOrSlug(idOrSlug: string, options: { includeDraft?: boolean } = {}): Promise<Product> {
+    const product = await productRepository.findByIdOrSlug(idOrSlug, options);
     if (!product) throw new NotFoundError("Product not found");
     return product;
   },
 
-  async getBySlug(slug: string): Promise<Product> {
-    const product = await productRepository.findBySlug(slug);
+  async getBySlug(slug: string, options: { includeDraft?: boolean } = {}): Promise<Product> {
+    const product = await productRepository.findBySlug(slug, options);
     if (!product) throw new NotFoundError("Product not found");
     return product;
   },
@@ -102,9 +120,9 @@ export const productService = {
       const result = await client.query<{ id: string }>(
         `INSERT INTO public.products
            (slug, title, description, category_id, price, discount, stock,
-            is_featured, is_best_seller, is_new_arrival, has_gift,
+            is_featured, is_best_seller, is_new_arrival, has_gift, is_published,
             model_height, model_weight, wearing_size)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
          RETURNING id`,
         [
           slug,
@@ -121,6 +139,7 @@ export const productService = {
           input.isBestSeller,
           input.isNewArrival,
           input.hasGift,
+          input.isPublished,
           input.modelHeight ?? null,
           input.modelWeight ?? null,
           input.wearingSize ?? null,
@@ -172,11 +191,15 @@ export const productService = {
     });
 
     invalidateProductsCache();
-    return this.getByIdOrSlug(id);
+    // includeDraft: a brand-new draft must come back to the admin that just
+    // created it, not 404 on its own response.
+    return this.getByIdOrSlug(id, { includeDraft: true });
   },
 
   async update(idOrSlug: string, input: UpdateInput): Promise<Product> {
-    const existing = await this.getByIdOrSlug(idOrSlug);
+    // includeDraft: this is the admin editing a product, which must work
+    // whether that product is currently published or already a draft.
+    const existing = await this.getByIdOrSlug(idOrSlug, { includeDraft: true });
 
     const columnMap: Record<string, string> = {
       title: "title",
@@ -192,6 +215,7 @@ export const productService = {
       isBestSeller: "is_best_seller",
       isNewArrival: "is_new_arrival",
       hasGift: "has_gift",
+      isPublished: "is_published",
       modelHeight: "model_height",
       modelWeight: "model_weight",
       wearingSize: "wearing_size",
@@ -255,11 +279,13 @@ export const productService = {
     }
 
     invalidateProductsCache();
-    return this.getByIdOrSlug(existing.id);
+    return this.getByIdOrSlug(existing.id, { includeDraft: true });
   },
 
   async remove(idOrSlug: string): Promise<void> {
-    const product = await this.getByIdOrSlug(idOrSlug);
+    // includeDraft: an admin must be able to delete a draft, same as a
+    // published product.
+    const product = await this.getByIdOrSlug(idOrSlug, { includeDraft: true });
     const deleted = await productRepository.deleteById(product.id);
     if (!deleted) throw new NotFoundError("Product not found");
     invalidateProductsCache();

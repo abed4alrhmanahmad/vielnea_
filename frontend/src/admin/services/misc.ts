@@ -1,3 +1,5 @@
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   apiClient,
   adminKeys,
@@ -117,13 +119,53 @@ interface ApiNotification {
   createdAt: string;
 }
 
+/**
+ * Read / dismissed state, kept in this browser. Notifications are derived from
+ * live data and have no table of their own, so this is what makes "Mark read"
+ * and "Remove" stick across refreshes (they used to do nothing). The key
+ * includes the timestamp, so a new event for the same order or product (e.g.
+ * stock dropping again) shows up as new.
+ */
+const NOTIFICATION_STATE_KEY = "vielinea_admin_notification_state";
+const NOTIFICATION_STATE_LIMIT = 500;
+interface NotificationState {
+  read: string[];
+  dismissed: string[];
+}
+const notificationListeners = new Set<() => void>();
+
+function readNotificationState(): NotificationState {
+  try {
+    const raw = window.localStorage.getItem(NOTIFICATION_STATE_KEY);
+    const parsed = raw ? (JSON.parse(raw) as Partial<NotificationState>) : {};
+    return { read: parsed.read ?? [], dismissed: parsed.dismissed ?? [] };
+  } catch {
+    return { read: [], dismissed: [] };
+  }
+}
+
+function updateNotificationState(change: (state: NotificationState) => NotificationState): void {
+  const next = change(readNotificationState());
+  try {
+    window.localStorage.setItem(
+      NOTIFICATION_STATE_KEY,
+      JSON.stringify({
+        read: [...new Set(next.read)].slice(-NOTIFICATION_STATE_LIMIT),
+        dismissed: [...new Set(next.dismissed)].slice(-NOTIFICATION_STATE_LIMIT),
+      }),
+    );
+  } catch {
+    // Storage unavailable (private mode): the change still applies until reload.
+  }
+  for (const listener of notificationListeners) listener();
+}
+
 function toNotification(api: ApiNotification): Notification {
   return {
-    id: api.id,
+    id: `${api.id}@${api.createdAt}`,
     type: api.type,
     title: api.title,
     body: api.body,
-    // Derived notifications have no per-admin read state; treated as unread.
     read: false,
     createdAt: new Date(api.createdAt).getTime(),
   };
@@ -137,22 +179,39 @@ export const notificationsService = {
     const rows = await apiClient.get<ApiNotification[]>("/admin/notifications");
     return rows.map(toNotification);
   },
-  /**
-   * Derived notifications have no stored per-admin read state, so these are
-   * accepted and ignored rather than removed — the buttons stay in the UI.
-   */
-  markRead(_id?: string): void {},
-  markAllRead(): void {},
-  remove(_id?: string): void {},
+  markRead(id: string): void {
+    updateNotificationState((s) => ({ ...s, read: [...s.read, id] }));
+  },
+  markAllRead(ids: string[]): void {
+    updateNotificationState((s) => ({ ...s, read: [...s.read, ...ids] }));
+  },
+  remove(id: string): void {
+    updateNotificationState((s) => ({ ...s, dismissed: [...s.dismissed, id] }));
+  },
   key: "admin-notifications",
 };
 
 export function useNotifications(): Notification[] {
-  return useAdminList<ApiNotification, Notification>(
+  const rows = useAdminList<ApiNotification, Notification>(
     ["admin", "notifications"],
     "/admin/notifications",
-    (rows) => rows.map(toNotification),
+    (list) => list.map(toNotification),
   );
+  // Starts empty (server render has no storage) and loads after mount.
+  const [state, setState] = useState<NotificationState>({ read: [], dismissed: [] });
+  useEffect(() => {
+    const sync = () => setState(readNotificationState());
+    sync();
+    notificationListeners.add(sync);
+    return () => {
+      notificationListeners.delete(sync);
+    };
+  }, []);
+  return useMemo(() => {
+    const read = new Set(state.read);
+    const dismissed = new Set(state.dismissed);
+    return rows.filter((n) => !dismissed.has(n.id)).map((n) => ({ ...n, read: read.has(n.id) }));
+  }, [rows, state]);
 }
 
 // ---------- Media ----------
@@ -229,12 +288,10 @@ export interface StoreSettings {
   socialInstagram: string;
   socialFacebook: string;
   socialTwitter: string;
-  adminName: string;
-  adminEmail: string;
 }
 
 interface ApiSettingsPayload {
-  store: Omit<StoreSettings, "adminName" | "adminEmail">;
+  store: StoreSettings;
   social?: { instagram?: string; facebook?: string; twitter?: string };
   contact?: { email?: string; phone?: string; address?: string };
   payment_methods?: { cardEnabled?: boolean; codEnabled?: boolean };
@@ -251,8 +308,6 @@ const SETTINGS_FALLBACK: StoreSettings = {
   socialInstagram: "",
   socialFacebook: "",
   socialTwitter: "",
-  adminName: "Vielinea Admin",
-  adminEmail: "",
 };
 
 function toSettings(api: ApiSettingsPayload): StoreSettings {
@@ -356,6 +411,27 @@ export const paymentMethodsService = {
     });
   },
 };
+
+/**
+ * The saved settings plus their loading state. The Settings form must not
+ * render (or be saved) until the real values have arrived: seeding it from the
+ * fallback used to put placeholder values on screen after every refresh, and
+ * Save then wrote them over the real store settings and social links.
+ */
+export function useSettingsQuery(): {
+  data: StoreSettings | undefined;
+  isPending: boolean;
+  isError: boolean;
+} {
+  const query = useQuery({
+    queryKey: ["admin", "settings"],
+    queryFn: () => apiClient.get<ApiSettingsPayload>("/admin/site/settings"),
+    staleTime: 15_000,
+    retry: 1,
+    select: toSettings,
+  });
+  return { data: query.data, isPending: query.isPending, isError: query.isError };
+}
 
 export function useSettings(): StoreSettings {
   return useAdminRecord<ApiSettingsPayload, StoreSettings>(

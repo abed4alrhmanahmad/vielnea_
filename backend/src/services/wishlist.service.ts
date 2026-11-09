@@ -24,11 +24,13 @@ export const wishlistService = {
     });
   },
 
+  // findByIdOrSlug, not resolveId: a draft product cannot be newly wishlisted
+  // (default excludes drafts), matching cart.service.add's behaviour.
   async add(userId: string, productIdOrSlug: string): Promise<WishlistItem[]> {
-    const productId = await productRepository.resolveId(productIdOrSlug);
-    if (!productId) throw new NotFoundError("Product not found");
+    const product = await productRepository.findByIdOrSlug(productIdOrSlug);
+    if (!product) throw new NotFoundError("Product not found");
 
-    await wishlistRepository.add(userId, productId);
+    await wishlistRepository.add(userId, product.id);
     return this.get(userId);
   },
 
@@ -45,6 +47,8 @@ export const wishlistService = {
     userId: string,
     productIdOrSlug: string,
   ): Promise<{ wishlisted: boolean; items: WishlistItem[] }> {
+    // resolveId first: removing an item already on the wishlist must keep
+    // working even if the product has since been drafted.
     const productId = await productRepository.resolveId(productIdOrSlug);
     if (!productId) throw new NotFoundError("Product not found");
 
@@ -52,6 +56,9 @@ export const wishlistService = {
     if (exists) {
       await wishlistRepository.remove(userId, productId);
     } else {
+      // Only a published product can be newly added.
+      const product = await productRepository.findByIdOrSlug(productIdOrSlug);
+      if (!product) throw new NotFoundError("Product not found");
       await wishlistRepository.add(userId, productId);
     }
 
@@ -62,8 +69,10 @@ export const wishlistService = {
   async merge(userId: string, productIdsOrSlugs: readonly string[]): Promise<WishlistItem[]> {
     const resolved: string[] = [];
     for (const idOrSlug of productIdsOrSlugs) {
-      const productId = await productRepository.resolveId(idOrSlug);
-      if (productId) resolved.push(productId);
+      // findByIdOrSlug, not resolveId: a guest's wishlisted draft is skipped,
+      // same as an id that no longer exists at all.
+      const product = await productRepository.findByIdOrSlug(idOrSlug);
+      if (product) resolved.push(product.id);
     }
     await wishlistRepository.mergeMany(userId, resolved);
     return this.get(userId);

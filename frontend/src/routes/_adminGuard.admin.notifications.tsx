@@ -20,7 +20,10 @@ function AdminNotificationsPage() {
       <PageHeader
         title="Notifications"
         actions={
-          <Button variant="outline" onClick={() => notificationsService.markAllRead()}>
+          <Button
+            variant="outline"
+            onClick={() => notificationsService.markAllRead(items.map((n) => n.id))}
+          >
             Mark all read
           </Button>
         }

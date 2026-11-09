@@ -317,6 +317,8 @@ admin.post("/chat/conversations/:id/messages", chatController.adminSendMessage);
 admin.patch("/chat/conversations/:id/read", chatController.adminMarkConversationRead);
 admin.patch("/chat/messages/:id/read", chatController.adminMarkMessageRead);
 
+admin.get("/categories", adminController.listCategories);
+admin.get("/products", adminController.listProducts);
 admin.post("/categories", adminController.createCategory);
 admin.put("/categories/:id", adminController.updateCategory);
 admin.delete("/categories/:id", adminController.deleteCategory);

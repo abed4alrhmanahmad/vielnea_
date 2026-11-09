@@ -21,6 +21,7 @@ interface ProductRow {
   is_best_seller: boolean;
   is_new_arrival: boolean;
   has_gift: boolean;
+  is_published: boolean;
   model_height: string | null;
   model_weight: string | null;
   wearing_size: string | null;
@@ -41,7 +42,7 @@ const PRODUCT_SELECT = `
     c.slug  AS category_slug,
     c.label AS category_label,
     p.price, p.discount, p.stock, p.rating, p.review_count,
-    p.is_featured, p.is_best_seller, p.is_new_arrival, p.has_gift,
+    p.is_featured, p.is_best_seller, p.is_new_arrival, p.has_gift, p.is_published,
     p.model_height, p.model_weight, p.wearing_size,
     p.created_at, p.updated_at,
     img.images, sz.sizes, ms.measurements
@@ -109,6 +110,7 @@ function mapProduct(row: ProductRow): Product {
     isBestSeller: row.is_best_seller,
     isNewArrival: row.is_new_arrival,
     hasGift: row.has_gift,
+    isPublished: row.is_published,
     modelHeight: row.model_height,
     modelWeight: row.model_weight,
     wearingSize: row.wearing_size,
@@ -151,10 +153,18 @@ export interface ProductListResult {
 }
 
 export const productRepository = {
-  /** Filtered, sorted, paginated list. All inputs are parameterised. */
-  async findMany(query: ProductQuery): Promise<ProductListResult> {
+  /**
+   * Filtered, sorted, paginated list. All inputs are parameterised.
+   * `includeDraft` is admin-only: every public caller leaves it false, so a
+   * draft product never appears in a public listing.
+   */
+  async findMany(
+    query: ProductQuery,
+    options: { includeDraft?: boolean } = {},
+  ): Promise<ProductListResult> {
     const conditions: string[] = [];
     const params: unknown[] = [];
+    if (!options.includeDraft) conditions.push("p.is_published = true");
 
     if (query.search) {
       params.push(`%${query.search}%`);
@@ -210,17 +220,31 @@ export const productRepository = {
     return { products: rows.map(mapProduct), total: countRow?.total ?? 0 };
   },
 
-  /** Looks up by UUID or slug, so storefront links keep working either way. */
-  async findByIdOrSlug(idOrSlug: string): Promise<Product | null> {
+  /**
+   * Looks up by UUID or slug, so storefront links keep working either way.
+   * Excludes drafts unless `includeDraft` is set — every admin write path
+   * (create/update/remove) passes it, so editing a draft never 404s; every
+   * public/customer path (storefront page, cart, wishlist) leaves it unset,
+   * so a draft is invisible and un-addable to them.
+   */
+  async findByIdOrSlug(
+    idOrSlug: string,
+    options: { includeDraft?: boolean } = {},
+  ): Promise<Product | null> {
+    const draft = options.includeDraft ? "" : "AND p.is_published";
     const row = await queryOne<ProductRow>(
-      `${PRODUCT_SELECT} WHERE ${isUuid(idOrSlug) ? "p.id = $1" : "p.slug = $1"} LIMIT 1`,
+      `${PRODUCT_SELECT} WHERE ${isUuid(idOrSlug) ? "p.id = $1" : "p.slug = $1"} ${draft} LIMIT 1`,
       [idOrSlug],
     );
     return row ? mapProduct(row) : null;
   },
 
-  async findBySlug(slug: string): Promise<Product | null> {
-    const row = await queryOne<ProductRow>(`${PRODUCT_SELECT} WHERE p.slug = $1 LIMIT 1`, [slug]);
+  async findBySlug(slug: string, options: { includeDraft?: boolean } = {}): Promise<Product | null> {
+    const draft = options.includeDraft ? "" : "AND p.is_published";
+    const row = await queryOne<ProductRow>(
+      `${PRODUCT_SELECT} WHERE p.slug = $1 ${draft} LIMIT 1`,
+      [slug],
+    );
     return row ? mapProduct(row) : null;
   },
 
@@ -234,11 +258,15 @@ export const productRepository = {
     return result.rows[0]?.id ?? null;
   },
 
-  /** Same-category products, excluding the one being viewed. */
+  /**
+   * Same-category products, excluding the one being viewed. Public-facing
+   * only (the storefront's "You may also like"), so drafts never surface
+   * here regardless of the viewed product's own state.
+   */
   async findRelated(productId: string, categoryId: string, limit: number): Promise<Product[]> {
     const rows = await queryMany<ProductRow>(
       `${PRODUCT_SELECT}
-       WHERE p.category_id = $1 AND p.id <> $2
+       WHERE p.category_id = $1 AND p.id <> $2 AND p.is_published
        ORDER BY p.is_best_seller DESC, p.rating DESC
        LIMIT $3`,
       [categoryId, productId, limit],

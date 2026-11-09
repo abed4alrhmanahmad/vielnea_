@@ -5,7 +5,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useReviews, reviewsService } from "@/admin/services/misc";
-import { toast } from "sonner";
 
 export const Route = createFileRoute("/_adminGuard/admin/reviews")({
   head: () => ({
@@ -56,20 +55,15 @@ function AdminReviewsPage() {
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={() => {
-                    reviewsService.update(r.id, { status: "approved" });
-                    toast.success("Approved");
-                  }}
+                  // The service reports success or failure once the request resolves.
+                  onClick={() => reviewsService.update(r.id, { status: "approved" })}
                 >
                   <Check className="size-4" />
                 </Button>
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={() => {
-                    reviewsService.update(r.id, { status: "hidden" });
-                    toast("Hidden");
-                  }}
+                  onClick={() => reviewsService.update(r.id, { status: "hidden" })}
                 >
                   <EyeOff className="size-4" />
                 </Button>
@@ -77,8 +71,7 @@ function AdminReviewsPage() {
                   size="sm"
                   variant="ghost"
                   onClick={() => {
-                    reviewsService.remove(r.id);
-                    toast("Deleted");
+                    if (confirm(`Delete the review by ${r.author}?`)) reviewsService.remove(r.id);
                   }}
                 >
                   <Trash2 className="size-4" />

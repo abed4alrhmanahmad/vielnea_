@@ -41,6 +41,8 @@ export interface ApiProduct {
   isBestSeller: boolean;
   isNewArrival: boolean;
   hasGift: boolean;
+  /** False = draft: hidden from the public storefront, admin still sees it. */
+  isPublished: boolean;
   modelHeight: string | null;
   modelWeight: string | null;
   wearingSize: string | null;
@@ -104,6 +106,8 @@ export interface ApiCategory {
   imageUrl: string | null;
   sortOrder: number;
   productCount?: number;
+  /** False = hidden from the storefront (only the admin list returns those). */
+  isActive?: boolean;
 }
 
 /** One slide of the homepage hero carousel. */

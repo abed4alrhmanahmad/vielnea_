@@ -94,6 +94,28 @@ export const adminAuth = {
     }
   },
 
+  /**
+   * Changes the signed-in admin's display name (the sidebar shows it). The
+   * email is sent unchanged — /auth/me needs both — so this never moves the
+   * sign-in address; that goes through changeEmail and its password check.
+   */
+  async changeName(name: string): Promise<{ ok: boolean; name?: string; error?: string }> {
+    const session = this.current();
+    if (!session) return { ok: false, error: "You are signed out. Sign in again." };
+    try {
+      const result = await apiClient.put<ApiAuthResult>("/auth/me", { name, email: session.email });
+      setToken(result.token);
+      setJSON<AdminSession>(KEY, {
+        email: result.user.email,
+        name: result.user.name,
+        loggedInAt: session.loggedInAt,
+      });
+      return { ok: true, name: result.user.name };
+    } catch (error) {
+      return { ok: false, error: errorMessage(error, "Could not change the name") };
+    }
+  },
+
   /** Changes the signed-in admin's password; the server verifies the current one. */
   async changePassword(
     currentPassword: string,

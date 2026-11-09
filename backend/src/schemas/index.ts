@@ -211,6 +211,9 @@ export const createProductSchema = z.object({
   isBestSeller: z.boolean().default(false),
   isNewArrival: z.boolean().default(false),
   hasGift: z.boolean().default(false),
+  // true = visible and purchasable on the storefront; false = draft, visible
+  // only in the admin dashboard.
+  isPublished: z.boolean().default(true),
   modelHeight: z.string().trim().max(60).nullable().optional(),
   modelWeight: z.string().trim().max(60).nullable().optional(),
   wearingSize: z.string().trim().max(30).nullable().optional(),

@@ -14,9 +14,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useOrders, ordersService, type Order, type OrderStatus } from "@/admin/services/orders";
+import { useOrders, ordersService, type OrderStatus } from "@/admin/services/orders";
 import { paymentMethodLabel, paymentStatusLabel, type PaymentStatus } from "@/lib/payment";
-import { toast } from "sonner";
 
 export const Route = createFileRoute("/_adminGuard/admin/orders")({
   head: () => ({
@@ -40,7 +39,10 @@ function OrdersPage() {
   const orders = useOrders();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<string>("all");
-  const [selected, setSelected] = useState<Order | null>(null);
+  // The id, not a snapshot: the dialog reads the live row, so "Mark paid" and
+  // status changes show up in it as soon as the list refetches.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = orders.find((o) => o.id === selectedId) ?? null;
   const rows = useMemo(
     () =>
       orders.filter((o) => {
@@ -138,8 +140,10 @@ function OrdersPage() {
                     <Select
                       value={o.status}
                       onValueChange={(v) => {
+                        // Cancelling is the one move a mis-click shouldn't make.
+                        if (v === "cancelled" && !confirm(`Cancel order ${o.orderNumber}?`)) return;
+                        // updateStatus() reports its own success/failure.
                         ordersService.updateStatus(o.id, v as OrderStatus);
-                        toast.success("Updated");
                       }}
                     >
                       <SelectTrigger className="w-32 h-8">
@@ -158,7 +162,7 @@ function OrdersPage() {
                     {new Date(o.createdAt).toLocaleDateString()}
                   </td>
                   <td className="text-right pr-3">
-                    <Button size="sm" variant="ghost" onClick={() => setSelected(o)}>
+                    <Button size="sm" variant="ghost" onClick={() => setSelectedId(o.id)}>
                       <Eye className="size-3.5" />
                     </Button>
                   </td>
@@ -170,7 +174,7 @@ function OrdersPage() {
       </Card>
 
       {selected && (
-        <Dialog open onOpenChange={(o) => !o && setSelected(null)}>
+        <Dialog open onOpenChange={(o) => !o && setSelectedId(null)}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>Order {selected.orderNumber}</DialogTitle>

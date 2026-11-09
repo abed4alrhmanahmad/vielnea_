@@ -6,9 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Skeleton } from "@/components/ui/skeleton";
 import { AdminAccountCards } from "@/admin/components/admin-account-cards";
+import { adminAuth } from "@/admin/services/admin-auth";
 import {
-  useSettings,
+  useSettingsQuery,
   settingsService,
   usePaymentMethodSettings,
   paymentMethodsService,
@@ -23,67 +25,93 @@ export const Route = createFileRoute("/_adminGuard/admin/settings")({
   component: AdminSettingsPage,
 });
 
-function AdminSettingsPage() {
-  const s = useSettings();
-  const payments = usePaymentMethodSettings();
-  const [d, setD] = useState<StoreSettings>(s);
-  const upd = (k: keyof StoreSettings, v: string | number) => setD({ ...d, [k]: v });
-  const F = ({
-    label,
-    k,
-    type = "text",
-  }: {
-    label: string;
-    k: keyof StoreSettings;
-    type?: string;
-  }) => (
+/**
+ * One labelled field. Defined at module level: declared inside the page it was
+ * a new component type on every render, so React remounted the input after
+ * each keystroke and focus was lost after one character.
+ */
+function Field({
+  label,
+  value,
+  onChange,
+  type = "text",
+}: {
+  label: string;
+  value: string | number;
+  onChange: (value: string) => void;
+  type?: string;
+}) {
+  return (
     <div>
       <Label>{label}</Label>
-      <Input
-        type={type}
-        value={d[k] as string | number}
-        onChange={(e) => upd(k, type === "number" ? +e.target.value : e.target.value)}
-      />
+      <Input type={type} value={value} onChange={(e) => onChange(e.target.value)} />
     </div>
   );
+}
+
+function AdminSettingsPage() {
+  const { data, isPending, isError } = useSettingsQuery();
+  if (isPending || !data) {
+    return (
+      <div>
+        <PageHeader
+          title="Settings"
+          description={
+            isError ? "Could not load the settings. Refresh to try again." : "Loading settings…"
+          }
+        />
+        {!isError && <Skeleton className="h-64 w-full" />}
+      </div>
+    );
+  }
+  // Mounted only once the saved values are here, so the form starts from them.
+  return <SettingsForm initial={data} />;
+}
+
+function SettingsForm({ initial }: { initial: StoreSettings }) {
+  const payments = usePaymentMethodSettings();
+  const [d, setD] = useState<StoreSettings>(initial);
+  const text = (k: keyof StoreSettings) => ({
+    value: d[k],
+    onChange: (v: string) => setD((prev) => ({ ...prev, [k]: v })),
+  });
   return (
     <div>
       <PageHeader
         title="Settings"
         actions={
-          <Button
-            onClick={() => {
-              settingsService.save(d);
-              toast.success("Saved");
-            }}
-          >
-            Save
-          </Button>
+          // save() reports its own success or failure once the API answers.
+          <Button onClick={() => settingsService.save(d)}>Save</Button>
         }
       />
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardContent className="p-6 space-y-3">
             <h3 className="font-display mb-2">Store</h3>
-            <F label="Store name" k="storeName" />
-            <F label="Email" k="storeEmail" />
-            <F label="Phone" k="storePhone" />
-            <F label="Address" k="storeAddress" />
-            <F label="Currency" k="currency" />
+            <Field label="Store name" {...text("storeName")} />
+            <Field label="Email" {...text("storeEmail")} />
+            <Field label="Phone" {...text("storePhone")} />
+            <Field label="Address" {...text("storeAddress")} />
+            <Field label="Currency" {...text("currency")} />
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-6 space-y-3">
             <h3 className="font-display mb-2">Shipping</h3>
-            <F label="Standard shipping" k="standardShipping" type="number" />
+            <Field
+              label="Standard shipping"
+              type="number"
+              value={d.standardShipping}
+              onChange={(v) => setD((prev) => ({ ...prev, standardShipping: Number(v) }))}
+            />
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-6 space-y-3">
             <h3 className="font-display mb-2">Social</h3>
-            <F label="Instagram" k="socialInstagram" />
-            <F label="Facebook" k="socialFacebook" />
-            <F label="Twitter" k="socialTwitter" />
+            <Field label="Instagram" {...text("socialInstagram")} />
+            <Field label="Facebook" {...text("socialFacebook")} />
+            <Field label="Twitter" {...text("socialTwitter")} />
           </CardContent>
         </Card>
         <Card>
@@ -133,15 +161,48 @@ function AdminSettingsPage() {
               )}
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-6 space-y-3">
-            <h3 className="font-display mb-2">Admin profile</h3>
-            <F label="Name" k="adminName" />
-            <F label="Email" k="adminEmail" />
-          </CardContent>
-        </Card>
+        <AdminProfileCard />
         <AdminAccountCards />
       </div>
     </div>
+  );
+}
+
+/**
+ * The signed-in admin's display name, saved to their account. (These fields
+ * used to sit in the store form, where Save ignored them.) The sign-in email
+ * is changed in its own card below, which re-checks the password.
+ */
+function AdminProfileCard() {
+  const [name, setName] = useState(adminAuth.current()?.name ?? "");
+  const [busy, setBusy] = useState(false);
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
+    if (name.trim().length < 2) {
+      toast.error("Name must be at least 2 characters");
+      return;
+    }
+    setBusy(true);
+    const result = await adminAuth.changeName(name.trim());
+    setBusy(false);
+    if (!result.ok) {
+      toast.error(result.error ?? "Could not change the name");
+      return;
+    }
+    setName(result.name ?? name.trim());
+    toast.success("Name updated");
+  }
+  return (
+    <Card>
+      <CardContent className="p-6">
+        <form onSubmit={save} className="space-y-3" noValidate>
+          <h3 className="font-display mb-2">Admin profile</h3>
+          <Field label="Name" value={name} onChange={setName} />
+          <Button type="submit" disabled={busy}>
+            {busy ? "Saving…" : "Save name"}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }

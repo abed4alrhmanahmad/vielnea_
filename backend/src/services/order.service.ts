@@ -6,6 +6,7 @@ import { toMoney } from "../utils/slug.js";
 import { cardPaymentProvider } from "./payment/index.js";
 import { checkoutPaymentMethods } from "./payment/methods.js";
 import { shippingFor } from "./cart.service.js";
+import { invalidateProductsCache } from "./product.service.js";
 import { sendNewOrderNotification } from "./email/order-notification.js";
 import { sendOrderConfirmation } from "./email/order-confirmation.js";
 import type { Order } from "../types/models.js";
@@ -37,6 +38,7 @@ interface LockedCartRow {
   product_stock: number;
   size_stock: number | null;
   image_url: string | null;
+  is_published: boolean;
 }
 
 export const orderService = {
@@ -78,6 +80,7 @@ export const orderService = {
                 p.discount,
                 p.stock AS product_stock,
                 ps.stock AS size_stock,
+                p.is_published,
                 (SELECT pi.image_url FROM public.product_images pi
                   WHERE pi.product_id = p.id
                   ORDER BY pi.sort_order LIMIT 1) AS image_url
@@ -100,6 +103,12 @@ export const orderService = {
       let discountTotal = 0;
 
       const lines = rows.map((row) => {
+        // A product drafted after it was added to the bag is treated the
+        // same as sold out: it is not purchasable while it is a draft.
+        if (!row.is_published) {
+          throw new BadRequestError(`${row.title} is no longer available — please remove it from your bag`);
+        }
+
         const available = row.size_stock === null ? row.product_stock : Math.min(row.size_stock, row.product_stock);
 
         if (available <= 0) {
@@ -262,6 +271,11 @@ export const orderService = {
       if (!created) throw new Error("Order vanished immediately after creation");
       return created;
     });
+
+    // The order took stock (product and size). Cached listings would keep
+    // showing the old figures for minutes — and an admin saving a product in
+    // that window would write the pre-sale stock back.
+    invalidateProductsCache();
 
     // 7. Tell the admin an order came in, and confirm it to the customer.
     //

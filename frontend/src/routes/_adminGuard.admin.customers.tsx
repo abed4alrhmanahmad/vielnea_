@@ -113,7 +113,8 @@ function CustomerDetail({ customer, onClose }: { customer: AdminCustomer; onClos
             <div className="border border-border rounded divide-y divide-border max-h-64 overflow-y-auto">
               {orders.map((o) => (
                 <div key={o.id} className="p-3 flex justify-between text-sm">
-                  <span className="font-mono text-xs">{o.id}</span>
+                  {/* The number the customer sees and quotes, not the uuid. */}
+                  <span className="font-mono text-xs">{o.orderNumber}</span>
                   <span>${o.total.toFixed(2)}</span>
                   <span className="text-muted-foreground">{o.status}</span>
                 </div>

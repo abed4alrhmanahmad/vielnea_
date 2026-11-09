@@ -11,7 +11,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useAdminProducts, productsService } from "@/admin/services/products-admin";
+import {
+  useAdminProducts,
+  productsService,
+  type AdminProduct,
+} from "@/admin/services/products-admin";
 
 export const Route = createFileRoute("/_adminGuard/admin/inventory")({
   head: () => ({
@@ -19,6 +23,60 @@ export const Route = createFileRoute("/_adminGuard/admin/inventory")({
   }),
   component: AdminInventoryPage,
 });
+
+/**
+ * Stock for one product. Sized products are stocked per size — checkout sells
+ * min(size stock, product stock), so raising only the total never made a
+ * sold-out size buyable again. Saves on blur, and only when a value changed.
+ */
+function StockEditor({ product }: { product: AdminProduct }) {
+  const sizes = product.sizes;
+  if (sizes.length === 0) {
+    return (
+      <Input
+        type="number"
+        min={0}
+        className="w-24 h-8"
+        defaultValue={product.stock}
+        aria-label={`Stock for ${product.title}`}
+        onBlur={(e) => {
+          const next = Number(e.target.value);
+          if (e.target.value === "" || next === product.stock) return;
+          productsService.update(product.id, { stock: next });
+        }}
+      />
+    );
+  }
+  const current = (s: string) => product.sizeStock?.[s] ?? 0;
+  return (
+    <div className="flex flex-wrap gap-1.5 py-2">
+      {sizes.map((s) => (
+        <label key={s} className="flex items-center gap-1 text-xs text-muted-foreground">
+          {s}
+          <Input
+            type="number"
+            min={0}
+            className="w-16 h-8"
+            defaultValue={current(s)}
+            aria-label={`Stock for ${product.title}, size ${s}`}
+            onBlur={(e) => {
+              const next = Number(e.target.value);
+              if (e.target.value === "" || next === current(s)) return;
+              const sizeStock = Object.fromEntries(
+                sizes.map((x) => [x, x === s ? next : current(x)]),
+              );
+              productsService.update(product.id, {
+                sizes,
+                sizeStock,
+                stock: Object.values(sizeStock).reduce((a, b) => a + b, 0),
+              });
+            }}
+          />
+        </label>
+      ))}
+    </div>
+  );
+}
 
 function AdminInventoryPage() {
   const products = useAdminProducts();
@@ -82,13 +140,11 @@ function AdminInventoryPage() {
                       <span>{p.title}</span>
                     </div>
                   </td>
-                  <td className="capitalize">{p.category}</td>
+                  <td className="capitalize">{p.categoryLabel || p.category}</td>
                   <td>
-                    <Input
-                      type="number"
-                      className="w-24 h-8"
-                      defaultValue={p.stock}
-                      onBlur={(e) => productsService.update(p.id, { stock: +e.target.value })}
+                    <StockEditor
+                      key={`${p.id}:${p.stock}:${JSON.stringify(p.sizeStock)}`}
+                      product={p}
                     />
                   </td>
                   <td>

@@ -201,7 +201,7 @@ function TopBar() {
             <div className="p-3 border-b border-border flex items-center justify-between">
               <span className="text-sm font-medium">Notifications</span>
               <button
-                onClick={() => notificationsService.markAllRead()}
+                onClick={() => notificationsService.markAllRead(notifications.map((n) => n.id))}
                 className="text-[10px] uppercase tracking-widest text-primary hover:underline"
               >
                 Mark all read

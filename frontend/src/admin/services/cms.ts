@@ -76,7 +76,38 @@ function useCmsInvalidator() {
   return () => {
     void queryClient.invalidateQueries({ queryKey: ["admin", "site"] });
     void queryClient.invalidateQueries({ queryKey: ["site"] });
+    // The Settings page reads the same store row and social links.
+    void queryClient.invalidateQueries({ queryKey: ["admin", "settings"] });
   };
+}
+
+/**
+ * Saves the Website Content form in one go: only the groups that changed, in
+ * parallel, with a single result toast. (Save used to PUT all seven groups
+ * every time and raise seven "saved" toasts, even when one field changed.)
+ */
+export function useSaveContent() {
+  const invalidate = useCmsInvalidator();
+  return useMutation({
+    mutationFn: async ({
+      groups,
+      store,
+    }: {
+      groups: Record<string, unknown>;
+      store?: Partial<AdminSiteSettings["store"]>;
+    }) => {
+      await Promise.all([
+        ...Object.entries(groups).map(([key, value]) =>
+          apiClient.put(`/admin/site/settings/${key}`, { value }),
+        ),
+        ...(store ? [apiClient.put("/admin/site/settings/store", store)] : []),
+      ]);
+    },
+    // Refetch either way: after a partial failure the form shows what was saved.
+    onSettled: () => invalidate(),
+    onSuccess: () => toast.success("Content saved"),
+    onError: (error) => toast.error(errorMessage(error, "Could not save the content")),
+  });
 }
 
 export function useSaveSettingGroup() {
