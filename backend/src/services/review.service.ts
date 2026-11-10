@@ -3,7 +3,28 @@ import { productRepository } from "../repositories/product.repository.js";
 import { userRepository } from "../repositories/user.repository.js";
 import { invalidateProductsCache } from "./product.service.js";
 import { ForbiddenError, NotFoundError } from "../lib/errors.js";
+import { cached } from "../lib/cache.js";
 import type { Review, ReviewStats } from "../types/models.js";
+
+const RESOLVE_CACHE_TTL_MS = 5 * 60_000;
+
+/**
+ * Slug or id -> product uuid for the public reviews panel, which every product
+ * page loads. The database is remote, so this saves a full round trip before
+ * the review queries can even start.
+ *
+ * Keyed under "products:detail:" so invalidateProductsCache() — called by every
+ * product create, update and delete — clears it with the product pages. A miss
+ * throws instead of returning null, and rejections are never cached, so an
+ * unknown slug always re-checks the database (and can't fill the cache).
+ */
+function resolveProductId(idOrSlug: string): Promise<string> {
+  return cached(`products:detail:resolve:${idOrSlug}`, RESOLVE_CACHE_TTL_MS, async () => {
+    const id = await productRepository.resolveId(idOrSlug);
+    if (!id) throw new NotFoundError("Product not found");
+    return id;
+  });
+}
 
 /** Adds the `viewerHasVotedHelpful` flag when the request is authenticated. */
 export interface ReviewWithViewerState extends Review {
@@ -18,8 +39,7 @@ export const reviewService = {
     limit: number,
     viewerId?: string | undefined,
   ): Promise<{ reviews: ReviewWithViewerState[]; stats: ReviewStats; total: number }> {
-    const productId = await productRepository.resolveId(productIdOrSlug);
-    if (!productId) throw new NotFoundError("Product not found");
+    const productId = await resolveProductId(productIdOrSlug);
 
     const [{ reviews, total }, stats] = await Promise.all([
       reviewRepository.findByProduct(productId, sort, page, limit),

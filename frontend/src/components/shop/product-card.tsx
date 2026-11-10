@@ -1,6 +1,5 @@
 import { Link } from "@tanstack/react-router";
 import { Heart } from "lucide-react";
-import { motion } from "framer-motion";
 import type { Product } from "@/data/products";
 import { useStore } from "@/contexts/store-context";
 import { IMAGE_SIZES, ResponsiveImage } from "@/components/responsive-image";
@@ -13,8 +12,12 @@ export function ProductCard({ product }: { product: Product }) {
   // Sold-out products stay listed; the badge says so, the product page blocks purchase.
   const soldOut = isSoldOut(product);
 
+  // The 4px hover lift is plain CSS (it was framer-motion whileHover y:-4, 0.3s),
+
+  // which keeps the animation library out of every product listing.
+
   return (
-    <motion.article whileHover={{ y: -4 }} transition={{ duration: 0.3 }} className="group">
+    <article className="group transition-transform duration-300 ease-out hover:-translate-y-1">
       <Link
         to="/product/$id"
         params={{ id: product.id }}
@@ -81,6 +84,6 @@ export function ProductCard({ product }: { product: Product }) {
           )}
         </div>
       </div>
-    </motion.article>
+    </article>
   );
 }

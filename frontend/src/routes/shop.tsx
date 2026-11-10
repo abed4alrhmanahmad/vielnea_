@@ -14,7 +14,8 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
-import { useProducts } from "@/services/products";
+import { productListOptions, useProducts } from "@/services/products";
+import type { ProductListParams } from "@/lib/api/types";
 import { categoriesOptions, useCategories } from "@/services/categories";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -28,9 +29,43 @@ const searchSchema = z.object({
   gift: z.string().optional(),
 });
 
+type ShopSearch = z.infer<typeof searchSchema>;
+
+/**
+ * The product query for a given URL. One definition, used by the loader and the
+ * page, so the server's prefetch and the page's hook share one cache entry.
+ */
+function productParams(search: ShopSearch): ProductListParams {
+  return {
+    search: search.q,
+    category: search.cat,
+    sort: search.sort ?? "newest",
+    page: search.page ?? 1,
+    limit: PAGE_SIZE,
+    gift: search.gift ? true : undefined,
+  };
+}
+
 export const Route = createFileRoute("/shop")({
-  loader: ({ context }) => context.queryClient.ensureQueryData(categoriesOptions()),
   validateSearch: (s) => searchSchema.parse(s),
+  loaderDeps: ({ search }) => ({
+    q: search.q,
+    cat: search.cat,
+    sort: search.sort,
+    page: search.page,
+    gift: search.gift,
+  }),
+  loader: async ({ context, deps }) => {
+    // The product grid is prefetched so it is in the server-rendered HTML. It
+    // used to render as skeletons there and only appear after the JS bundle
+    // had loaded and made a second round trip. `prefetchQuery` never throws: if
+    // the API fails, the page's own error state and retry button handle it as
+    // before. In the browser it only starts the request, so changing sort,
+    // filter or page still navigates instantly to the skeleton as it always did.
+    const products = context.queryClient.prefetchQuery(productListOptions(productParams(deps)));
+    if (typeof window === "undefined") await products;
+    return context.queryClient.ensureQueryData(categoriesOptions());
+  },
   head: ({ loaderData, match }) => {
     // A category is a collection page of its own, named from its database row.
     // Sort, paging and gift filters are views of it, so they share its canonical;
@@ -77,14 +112,9 @@ function ShopPage() {
   const [q, setQ] = useState(search.q ?? "");
 
   // Filtering, sorting and pagination all happen in Postgres via the API.
-  const { data, isPending, isError, error, refetch, isFetching } = useProducts({
-    search: search.q,
-    category: search.cat,
-    sort: search.sort ?? "newest",
-    page: search.page ?? 1,
-    limit: PAGE_SIZE,
-    gift: search.gift ? true : undefined,
-  });
+  const { data, isPending, isError, error, refetch, isFetching } = useProducts(
+    productParams(search),
+  );
 
   const categoriesQuery = useCategories();
 

@@ -13,6 +13,8 @@ import { BadRequestError, NotFoundError } from "../lib/errors.js";
 import { isUuid } from "../utils/slug.js";
 import { invalidateShippingCache } from "../services/cart.service.js";
 import { cached, invalidateCache } from "../lib/cache.js";
+import { FAQ_PUBLIC_CACHE_KEY } from "../services/faq.service.js";
+import { TIMELINE_PUBLIC_CACHE_KEY } from "../services/company-timeline.service.js";
 
 // Loaded on every homepage/page visit; the database is remote, so this
 // avoids paying that round trip on repeat requests between admin edits (the
@@ -221,6 +223,10 @@ export const cmsController = {
     const section = await cmsRepository.updateSection(id, input);
     if (!section) throw new NotFoundError("Section not found");
     invalidateCache("cms:page:");
+    // The FAQ and timeline payloads embed their CMS section's switch and
+    // header copy, so a section save has to drop those caches too.
+    invalidateCache(FAQ_PUBLIC_CACHE_KEY);
+    invalidateCache(TIMELINE_PUBLIC_CACHE_KEY);
     sendData(res, section);
   }),
 

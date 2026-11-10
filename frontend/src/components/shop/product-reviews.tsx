@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { Star, ThumbsUp, Flag, Pencil, Trash2, ShieldCheck } from "lucide-react";
-import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -214,10 +213,12 @@ export function ProductReviews({
           {/* List */}
           <div>
             {editing && (
-              <motion.div
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mb-8 border border-border rounded-md p-5 bg-card"
+              // Same 6px fade-and-rise the framer-motion version had, in CSS.
+              <div
+                style={
+                  { "--enter-from": "6px", "--enter-duration": "300ms" } as React.CSSProperties
+                }
+                className="enter-rise mb-8 border border-border rounded-md p-5 bg-card"
               >
                 <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground mb-3">
                   {myReview ? "Edit your review" : `Review ${productTitle}`}
@@ -243,7 +244,7 @@ export function ProductReviews({
                     {createReview.isPending ? "Saving…" : myReview ? "Save" : "Submit"}
                   </Button>
                 </div>
-              </motion.div>
+              </div>
             )}
 
             {reviews.length > 0 && (

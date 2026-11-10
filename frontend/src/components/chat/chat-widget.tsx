@@ -12,7 +12,6 @@
  * customer keeps the existing authenticated chat exactly as it was.
  */
 import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
 import { MessageCircle, X, Send, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -86,6 +85,19 @@ function useChatSheet(open: boolean) {
 export function ChatWidget() {
   const { isAuthenticated } = useStore();
   const [open, setOpen] = useState(false);
+  // Keeps the panel mounted while its close animation plays, as framer-motion's
+  // AnimatePresence did. It normally unmounts on `animationend`; the timer is a
+  // fallback so the panel can never stay stuck on screen if that event is missed.
+  const [present, setPresent] = useState(false);
+  useEffect(() => {
+    if (open) {
+      setPresent(true);
+      return;
+    }
+    if (!present) return;
+    const id = window.setTimeout(() => setPresent(false), 300);
+    return () => window.clearTimeout(id);
+  }, [open, present]);
   const [text, setText] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const { isSheet, viewport } = useChatSheet(open);
@@ -181,126 +193,122 @@ export function ChatWidget() {
 
   return (
     <>
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: 16, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 16, scale: 0.98 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-            style={isSheet && viewport ? { top: viewport.top, height: viewport.height } : undefined}
-            className={`fixed z-50 flex flex-col bg-card overflow-hidden ${
-              isSheet
-                ? "inset-x-0 top-0 h-dvh w-full"
-                : "bottom-24 right-6 w-[min(22rem,calc(100vw-3rem))] h-[min(28rem,calc(100dvh-8rem))] border border-border rounded shadow-xl"
-            }`}
-            role="dialog"
-            aria-label="Live chat with Vielinea support"
-          >
-            <div className="shrink-0 px-4 py-3 bg-primary text-primary-foreground flex items-center justify-between">
-              <div>
-                <div className="font-display text-base leading-tight">Vielinea Support</div>
-                <div className="text-[11px] opacity-80 flex items-center gap-1.5">
-                  <span
-                    className={`size-1.5 rounded-full ${connected ? "bg-green-400" : "bg-white/40"}`}
-                  />
-                  {connected ? "Connected" : "Reconnecting…"}
-                </div>
+      {(open || present) && (
+        <div
+          // Open/close animation in CSS (styles.css); see `present` above.
+          onAnimationEnd={(e) => {
+            if (!open && e.target === e.currentTarget) setPresent(false);
+          }}
+          style={isSheet && viewport ? { top: viewport.top, height: viewport.height } : undefined}
+          className={`${open ? "chat-panel-in" : "chat-panel-out"} fixed z-50 flex flex-col bg-card overflow-hidden ${
+            isSheet
+              ? "inset-x-0 top-0 h-dvh w-full"
+              : "bottom-24 right-6 w-[min(22rem,calc(100vw-3rem))] h-[min(28rem,calc(100dvh-8rem))] border border-border rounded shadow-xl"
+          }`}
+          role="dialog"
+          aria-label="Live chat with Vielinea support"
+        >
+          <div className="shrink-0 px-4 py-3 bg-primary text-primary-foreground flex items-center justify-between">
+            <div>
+              <div className="font-display text-base leading-tight">Vielinea Support</div>
+              <div className="text-[11px] opacity-80 flex items-center gap-1.5">
+                <span
+                  className={`size-1.5 rounded-full ${connected ? "bg-green-400" : "bg-white/40"}`}
+                />
+                {connected ? "Connected" : "Reconnecting…"}
               </div>
-              <button
-                onClick={() => setOpen(false)}
-                aria-label="Close chat"
-                className="-mr-2 p-2 opacity-80 hover:opacity-100 transition-opacity"
-              >
-                <X className={isSheet ? "size-5" : "size-4"} />
-              </button>
             </div>
+            <button
+              onClick={() => setOpen(false)}
+              aria-label="Close chat"
+              className="-mr-2 p-2 opacity-80 hover:opacity-100 transition-opacity"
+            >
+              <X className={isSheet ? "size-5" : "size-4"} />
+            </button>
+          </div>
 
-            {guestQuery.isError ? (
-              <div className="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center">
-                <p className="text-sm text-muted-foreground">
-                  Chat is unavailable right now. Please try again in a moment.
-                </p>
-              </div>
-            ) : (
-              <>
-                <div
-                  ref={scrollRef}
-                  className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 space-y-3"
-                >
-                  {messagesQuery.isLoading ||
-                  startConversation.isPending ||
-                  guestQuery.isLoading ? (
-                    <div className="h-full flex items-center justify-center text-muted-foreground">
-                      <Loader2 className="size-5 animate-spin" />
-                    </div>
-                  ) : messages.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center pt-8">
-                      Ask us anything — sizing, delivery, returns. We usually reply within a few
-                      minutes.
-                    </p>
-                  ) : (
-                    messages.map((message) => (
-                      <div
-                        key={message.id}
-                        className={`flex ${message.senderRole === "customer" ? "justify-end" : "justify-start"}`}
-                      >
-                        <div className="max-w-[80%] min-w-0">
-                          <div
-                            className={`px-3 py-2 rounded-lg text-sm whitespace-pre-wrap break-words [overflow-wrap:anywhere] ${
-                              message.senderRole === "customer"
-                                ? "bg-primary text-primary-foreground"
-                                : "bg-secondary text-foreground"
-                            }`}
-                          >
-                            {message.message}
-                          </div>
-                          <div
-                            className={`text-[10px] text-muted-foreground mt-1 ${
-                              message.senderRole === "customer" ? "text-right" : "text-left"
-                            }`}
-                          >
-                            {formatTime(message.createdAt)}
-                          </div>
+          {guestQuery.isError ? (
+            <div className="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center">
+              <p className="text-sm text-muted-foreground">
+                Chat is unavailable right now. Please try again in a moment.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div
+                ref={scrollRef}
+                className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 space-y-3"
+              >
+                {messagesQuery.isLoading || startConversation.isPending || guestQuery.isLoading ? (
+                  <div className="h-full flex items-center justify-center text-muted-foreground">
+                    <Loader2 className="size-5 animate-spin" />
+                  </div>
+                ) : messages.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center pt-8">
+                    Ask us anything — sizing, delivery, returns. We usually reply within a few
+                    minutes.
+                  </p>
+                ) : (
+                  messages.map((message) => (
+                    <div
+                      key={message.id}
+                      className={`flex ${message.senderRole === "customer" ? "justify-end" : "justify-start"}`}
+                    >
+                      <div className="max-w-[80%] min-w-0">
+                        <div
+                          className={`px-3 py-2 rounded-lg text-sm whitespace-pre-wrap break-words [overflow-wrap:anywhere] ${
+                            message.senderRole === "customer"
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-secondary text-foreground"
+                          }`}
+                        >
+                          {message.message}
+                        </div>
+                        <div
+                          className={`text-[10px] text-muted-foreground mt-1 ${
+                            message.senderRole === "customer" ? "text-right" : "text-left"
+                          }`}
+                        >
+                          {formatTime(message.createdAt)}
                         </div>
                       </div>
-                    ))
-                  )}
-                  {sendMessage.isPending && (
-                    <div className="flex justify-end">
-                      <div className="text-[10px] text-muted-foreground flex items-center gap-1">
-                        <Loader2 className="size-3 animate-spin" />
-                        Sending…
-                      </div>
                     </div>
-                  )}
-                </div>
+                  ))
+                )}
+                {sendMessage.isPending && (
+                  <div className="flex justify-end">
+                    <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+                      <Loader2 className="size-3 animate-spin" />
+                      Sending…
+                    </div>
+                  </div>
+                )}
+              </div>
 
-                <form
-                  onSubmit={submit}
-                  className="shrink-0 p-3 border-t border-border flex gap-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+              <form
+                onSubmit={submit}
+                className="shrink-0 p-3 border-t border-border flex gap-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+              >
+                <Input
+                  value={text}
+                  onChange={(event) => setText(event.target.value)}
+                  placeholder="Type a message…"
+                  maxLength={2000}
+                  disabled={!conversationId}
+                  aria-label="Message"
+                />
+                <Button
+                  type="submit"
+                  disabled={!conversationId || !text.trim() || sendMessage.isPending}
+                  aria-label="Send message"
                 >
-                  <Input
-                    value={text}
-                    onChange={(event) => setText(event.target.value)}
-                    placeholder="Type a message…"
-                    maxLength={2000}
-                    disabled={!conversationId}
-                    aria-label="Message"
-                  />
-                  <Button
-                    type="submit"
-                    disabled={!conversationId || !text.trim() || sendMessage.isPending}
-                    aria-label="Send message"
-                  >
-                    <Send className="size-4" />
-                  </Button>
-                </form>
-              </>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+                  <Send className="size-4" />
+                </Button>
+              </form>
+            </>
+          )}
+        </div>
+      )}
 
       {/* On phones the open sheet has its own close button; the launcher would
           otherwise sit on top of the message input. */}

@@ -53,16 +53,19 @@ export const reviewRepository = {
     limit: number,
   ): Promise<{ reviews: Review[]; total: number }> {
     // Hidden reviews are excluded from the storefront everywhere, including
-    // the count and the rating breakdown.
-    const countRow = await queryOne<{ total: number }>(
-      "SELECT count(*)::int AS total FROM public.reviews WHERE product_id = $1 AND status <> 'hidden'",
-      [productId],
-    );
-    const rows = await queryMany<ReviewRow>(
-      `${SELECT} WHERE product_id = $1 AND status <> 'hidden'
-       ORDER BY ${SORT_SQL[sort]} LIMIT $2 OFFSET $3`,
-      [productId, limit, (page - 1) * limit],
-    );
+    // the count and the rating breakdown. The two queries are independent, so
+    // they run side by side: one database round trip instead of two.
+    const [countRow, rows] = await Promise.all([
+      queryOne<{ total: number }>(
+        "SELECT count(*)::int AS total FROM public.reviews WHERE product_id = $1 AND status <> 'hidden'",
+        [productId],
+      ),
+      queryMany<ReviewRow>(
+        `${SELECT} WHERE product_id = $1 AND status <> 'hidden'
+         ORDER BY ${SORT_SQL[sort]} LIMIT $2 OFFSET $3`,
+        [productId, limit, (page - 1) * limit],
+      ),
+    ]);
     return { reviews: rows.map(mapReview), total: countRow?.total ?? 0 };
   },
 

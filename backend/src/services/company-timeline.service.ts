@@ -1,11 +1,22 @@
 import { companyTimelineRepository } from "../repositories/company-timeline.repository.js";
 import { NotFoundError } from "../lib/errors.js";
+import { cached, invalidateCache } from "../lib/cache.js";
 import type { TimelineEntry, TimelineFeature } from "../types/models.js";
 import type { z } from "zod";
 import type { createTimelineEntrySchema, updateTimelineEntrySchema } from "../schemas/index.js";
 
 type CreateInput = z.infer<typeof createTimelineEntrySchema>;
 type UpdateInput = z.infer<typeof updateTimelineEntrySchema>;
+
+/**
+ * Read on every About page render; the database is remote (two queries,
+ * ~230ms each), so repeat reads come from memory. Every entry write below
+ * invalidates it, and so does a CMS section save (cms.controller.ts), because
+ * the feature switch and header copy live on the CMS `timeline` section — an
+ * admin change still shows immediately; the TTL is only a safety net.
+ */
+export const TIMELINE_PUBLIC_CACHE_KEY = "company-timeline:public";
+const PUBLIC_CACHE_TTL_MS = 5 * 60_000;
 
 export interface TimelinePayload {
   enabled: boolean;
@@ -26,7 +37,11 @@ export interface TimelinePayload {
  */
 export const companyTimelineService = {
   /** Storefront: the switch plus active entries only. */
-  async publicView(): Promise<TimelinePayload> {
+  publicView(): Promise<TimelinePayload> {
+    return cached(TIMELINE_PUBLIC_CACHE_KEY, PUBLIC_CACHE_TTL_MS, () => this.loadPublicView());
+  },
+
+  async loadPublicView(): Promise<TimelinePayload> {
     const [section, entries] = await Promise.all([
       companyTimelineRepository.findFeature(),
       companyTimelineRepository.findActive(),
@@ -54,18 +69,22 @@ export const companyTimelineService = {
     return { enabled: section.enabled, section, entries };
   },
 
-  create(input: CreateInput): Promise<TimelineEntry> {
-    return companyTimelineRepository.create(input);
+  async create(input: CreateInput): Promise<TimelineEntry> {
+    const entry = await companyTimelineRepository.create(input);
+    invalidateCache(TIMELINE_PUBLIC_CACHE_KEY);
+    return entry;
   },
 
   async update(id: string, input: UpdateInput): Promise<TimelineEntry> {
     const updated = await companyTimelineRepository.update(id, input);
     if (!updated) throw new NotFoundError("Timeline entry not found");
+    invalidateCache(TIMELINE_PUBLIC_CACHE_KEY);
     return updated;
   },
 
   async remove(id: string): Promise<void> {
     const deleted = await companyTimelineRepository.remove(id);
     if (!deleted) throw new NotFoundError("Timeline entry not found");
+    invalidateCache(TIMELINE_PUBLIC_CACHE_KEY);
   },
 };

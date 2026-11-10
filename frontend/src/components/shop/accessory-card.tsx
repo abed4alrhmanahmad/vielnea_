@@ -2,7 +2,6 @@
  * Accessory card and detail dialog, shared by /accessories and the homepage
  * Accessories row so both show the same image, name, price and sold-out state.
  */
-import { motion } from "framer-motion";
 import { IMAGE_SIZES, ResponsiveImage } from "@/components/responsive-image";
 import {
   Dialog,
@@ -22,8 +21,12 @@ export function AccessoryCard({
 }) {
   const soldOut = accessory.stock <= 0;
 
+  // The 4px hover lift is plain CSS (it was framer-motion whileHover y:-4, 0.3s),
+
+  // which keeps the animation library out of every product listing.
+
   return (
-    <motion.article whileHover={{ y: -4 }} transition={{ duration: 0.3 }} className="group">
+    <article className="group transition-transform duration-300 ease-out hover:-translate-y-1">
       <button
         type="button"
         onClick={onOpen}
@@ -70,7 +73,7 @@ export function AccessoryCard({
           )}
         </div>
       </div>
-    </motion.article>
+    </article>
   );
 }
 

@@ -1,6 +1,5 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useState } from "react";
-import { motion } from "framer-motion";
 import { Heart, Minus, Plus, Star, RotateCcw } from "lucide-react";
 import { Shell } from "@/components/layout/shell";
 import { ProductCard } from "@/components/shop/product-card";
@@ -94,8 +93,8 @@ function ProductPage() {
   const { addToCart, toggleWishlist, isWishlisted } = useStore();
   const [activeImg, setActiveImg] = useState(0);
   // The crossfade plays only once the shopper picks another image. On first
-  // render `initial={false}` keeps the lead image (this page's LCP) visible in
-  // the server HTML instead of at opacity:0 until hydration.
+  // render no fade class is applied, so the lead image (this page's LCP) is
+  // visible in the server HTML instead of at opacity:0 until hydration.
   const [imageSwitched, setImageSwitched] = useState(false);
   // Start on the first size that can be bought; a fully sold-out product keeps its first.
   const [size, setSize] = useState<string>(
@@ -157,12 +156,10 @@ function ProductPage() {
               </button>
             ))}
           </div>
-          <motion.div
+          <div
+            // Remounts per image, so the 400ms CSS fade replays on every switch.
             key={activeImg}
-            initial={imageSwitched ? { opacity: 0 } : false}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.4 }}
-            className="relative flex-1 w-full aspect-[4/5] overflow-hidden rounded-lg bg-secondary"
+            className={`${imageSwitched ? "enter-fade " : ""}relative flex-1 w-full aspect-[4/5] overflow-hidden rounded-lg bg-secondary`}
           >
             <ResponsiveImage
               src={product.images[activeImg]}
@@ -178,7 +175,7 @@ function ProductPage() {
                 Sold out
               </span>
             )}
-          </motion.div>
+          </div>
         </div>
 
         <div>

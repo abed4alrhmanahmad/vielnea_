@@ -1,11 +1,22 @@
 import { faqRepository } from "../repositories/faq.repository.js";
 import { NotFoundError } from "../lib/errors.js";
+import { cached, invalidateCache } from "../lib/cache.js";
 import type { Faq, FaqSection } from "../types/models.js";
 import type { z } from "zod";
 import type { createFaqSchema, updateFaqSchema } from "../schemas/index.js";
 
 type CreateInput = z.infer<typeof createFaqSchema>;
 type UpdateInput = z.infer<typeof updateFaqSchema>;
+
+/**
+ * Read on every /faq and About page render; the database is remote (two
+ * queries, ~230ms each), so repeat reads come from memory. Every FAQ write
+ * below invalidates it, and so does a CMS section save (cms.controller.ts),
+ * because the section switch and header copy live on the CMS `faq` section —
+ * an admin change still shows immediately; the TTL is only a safety net.
+ */
+export const FAQ_PUBLIC_CACHE_KEY = "faqs:public";
+const PUBLIC_CACHE_TTL_MS = 5 * 60_000;
 
 export interface FaqPayload {
   enabled: boolean;
@@ -26,7 +37,11 @@ export interface FaqPayload {
  */
 export const faqService = {
   /** Storefront: the switch plus active questions only. */
-  async publicView(): Promise<FaqPayload> {
+  publicView(): Promise<FaqPayload> {
+    return cached(FAQ_PUBLIC_CACHE_KEY, PUBLIC_CACHE_TTL_MS, () => this.loadPublicView());
+  },
+
+  async loadPublicView(): Promise<FaqPayload> {
     const [section, faqs] = await Promise.all([
       faqRepository.findSection(),
       faqRepository.findActive(),
@@ -53,18 +68,22 @@ export const faqService = {
     return { enabled: section.enabled, section, faqs };
   },
 
-  create(input: CreateInput): Promise<Faq> {
-    return faqRepository.create(input);
+  async create(input: CreateInput): Promise<Faq> {
+    const faq = await faqRepository.create(input);
+    invalidateCache(FAQ_PUBLIC_CACHE_KEY);
+    return faq;
   },
 
   async update(id: string, input: UpdateInput): Promise<Faq> {
     const updated = await faqRepository.update(id, input);
     if (!updated) throw new NotFoundError("FAQ not found");
+    invalidateCache(FAQ_PUBLIC_CACHE_KEY);
     return updated;
   },
 
   async remove(id: string): Promise<void> {
     const deleted = await faqRepository.remove(id);
     if (!deleted) throw new NotFoundError("FAQ not found");
+    invalidateCache(FAQ_PUBLIC_CACHE_KEY);
   },
 };
