@@ -4,16 +4,9 @@ import { PageHeader } from "@/admin/components/admin-shell";
 import { Card, CardContent } from "@/components/ui/card";
 import { useOrders } from "@/admin/services/orders";
 import { useAdminProducts } from "@/admin/services/products-admin";
+import { isOutOfStock, needsRestock } from "@/admin/lib/stock";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-} from "recharts";
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 
 export const Route = createFileRoute("/_adminGuard/admin/analytics")({
   head: () => ({
@@ -59,7 +52,10 @@ function AdminAnalyticsPage() {
     .slice()
     .sort((a, b) => a.qty - b.qty)
     .slice(0, 5);
-  const lowStock = products.filter((p) => p.stock <= 5);
+  // Same definitions as Dashboard, Inventory and the notifications: out is 0,
+  // low is 1–5. The list keeps both, as it always did, but names them apart.
+  const restock = products.filter((p) => needsRestock(p.stock)).sort((a, b) => a.stock - b.stock);
+  const outCount = restock.filter((p) => isOutOfStock(p.stock)).length;
   return (
     <div>
       <PageHeader title="Analytics" description="Sales, product and customer insights" />
@@ -113,12 +109,16 @@ function AdminAnalyticsPage() {
         </Card>
         <Card className="md:col-span-2">
           <CardContent className="p-4">
-            <h3 className="font-display mb-3">Low stock ({lowStock.length})</h3>
+            <h3 className="font-display mb-3">
+              Needs restocking ({outCount} out of stock, {restock.length - outCount} low)
+            </h3>
             <ul className="text-sm divide-y divide-border">
-              {lowStock.map((p) => (
+              {restock.map((p) => (
                 <li key={p.id} className="py-2 flex justify-between">
                   <span>{p.title}</span>
-                  <span className="text-muted-foreground">{p.stock} left</span>
+                  <span className="text-muted-foreground">
+                    {isOutOfStock(p.stock) ? "Out of stock" : `${p.stock} left`}
+                  </span>
                 </li>
               ))}
             </ul>

@@ -219,6 +219,11 @@ function Home() {
   const instagramImages = useSelectedImages().data ?? [];
   const marquee = instaMarquee(Math.max(1, instagramImages.length));
   const newsletterSection = findSection(page, "newsletter");
+  // The public page omits hidden sections, so "found" means "switched on" in
+  // Pages → Homepage — that switch is the one visibility control for each
+  // band. Until the page has loaded (or if it failed to) the bands keep
+  // rendering as before rather than vanishing.
+  const showSection = (section: ReturnType<typeof findSection>) => !page || Boolean(section);
 
   const pickByIds = (ids: string[]) =>
     ids.map((id) => products.find((p) => p.id === id)).filter((p): p is StoreProduct => Boolean(p));
@@ -353,35 +358,39 @@ function Home() {
         ),
       )}
 
-      {/* Testimonials */}
-      <section className="bg-secondary/50 border-y border-border">
-        <div className="container-luxe py-20">
-          <p className="text-[11px] uppercase tracking-[0.35em] text-primary text-center mb-4">
-            {testimonialsSection?.subtitle}
-          </p>
-          <h2 className="font-display text-4xl md:text-5xl text-center text-foreground">
-            {testimonialsSection?.title}
-          </h2>
-          <div className="mt-14 grid md:grid-cols-3 gap-10">
-            {testimonials.map((t) => (
-              <figure key={t.id} className="text-center">
-                <blockquote className="font-display text-xl italic text-foreground leading-relaxed">
-                  "{t.quote}"
-                </blockquote>
-                <figcaption className="mt-6 text-xs uppercase tracking-[0.25em] text-muted-foreground">
-                  {t.name} · {t.location}
-                </figcaption>
-              </figure>
-            ))}
+      {/* Testimonials. Heading and on/off from Pages → Homepage; quotes from
+          Site Content → Testimonials. */}
+      {showSection(testimonialsSection) && (
+        <section className="bg-secondary/50 border-y border-border">
+          <div className="container-luxe py-20">
+            <p className="text-[11px] uppercase tracking-[0.35em] text-primary text-center mb-4">
+              {testimonialsSection?.subtitle}
+            </p>
+            <h2 className="font-display text-4xl md:text-5xl text-center text-foreground">
+              {testimonialsSection?.title}
+            </h2>
+            <div className="mt-14 grid md:grid-cols-3 gap-10">
+              {testimonials.map((t) => (
+                <figure key={t.id} className="text-center">
+                  <blockquote className="font-display text-xl italic text-foreground leading-relaxed">
+                    "{t.quote}"
+                  </blockquote>
+                  <figcaption className="mt-6 text-xs uppercase tracking-[0.25em] text-muted-foreground">
+                    {t.name} · {t.location}
+                  </figcaption>
+                </figure>
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
-      {/* Instagram. The whole section is omitted when the admin has no active
+      {/* Instagram. The whole section is omitted when the admin has switched it
+          off in Pages → Homepage, or has no active
           selected images: an empty marquee would be a bare strip of placeholder
           boxes under a heading, and inventing filler imagery is worse. It comes
           back by itself as soon as one image is switched on. */}
-      {instagramImages.length > 0 && (
+      {showSection(instagramSection) && instagramImages.length > 0 && (
         <section className="container-luxe py-20">
           <div className="flex items-end justify-between mb-8">
             <div>
@@ -390,8 +399,10 @@ function Home() {
               </p>
               <h2 className="font-display text-3xl md:text-4xl">{instagramSection?.title}</h2>
             </div>
+            {/* One Instagram destination for the whole site: the profile URL
+                set under Site Content → Footer (also the footer icon). */}
             <a
-              href={instagramSection?.buttonUrl || "#"}
+              href={site.social.instagram || "#"}
               className="text-xs uppercase tracking-[0.25em] text-primary hover:text-primary-dark"
             >
               {instagramSection?.buttonText}
@@ -482,44 +493,44 @@ function Home() {
         </section>
       )}
 
-      {/* Newsletter */}
-      <section className="bg-primary text-primary-foreground">
-        <div className="container-luxe py-16 text-center max-w-2xl mx-auto">
-          <h2 className="font-display text-3xl md:text-4xl">
-            {newsletterSection?.title ?? site.newsletter.title}
-          </h2>
-          <p className="mt-3 text-primary-foreground/80 text-sm">
-            {newsletterSection?.content ?? site.newsletter.body}
-          </p>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const form = e.currentTarget;
-              const email = new FormData(form).get("email");
-              if (typeof email !== "string" || !email) return;
-              // Persisted to newsletter_subscribers; duplicates are handled server-side.
-              newsletter.mutate({ email, source: "homepage" }, { onSuccess: () => form.reset() });
-            }}
-            className="mt-8 flex flex-col sm:flex-row gap-2 max-w-md mx-auto"
-          >
-            <Input
-              name="email"
-              type="email"
-              required
-              placeholder="Your email"
-              className="bg-background text-foreground"
-            />
-            <Button
-              type="submit"
-              variant="secondary"
-              disabled={newsletter.isPending}
-              className="bg-background text-primary hover:bg-background/90"
+      {/* Newsletter. Shown or hidden by its section in Pages → Homepage; the
+          copy is the one newsletter text in Site Content → Contact, shared
+          with the footer block (whose own switch only affects the footer). */}
+      {showSection(newsletterSection) && (
+        <section className="bg-primary text-primary-foreground">
+          <div className="container-luxe py-16 text-center max-w-2xl mx-auto">
+            <h2 className="font-display text-3xl md:text-4xl">{site.newsletter.title}</h2>
+            <p className="mt-3 text-primary-foreground/80 text-sm">{site.newsletter.body}</p>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const form = e.currentTarget;
+                const email = new FormData(form).get("email");
+                if (typeof email !== "string" || !email) return;
+                // Persisted to newsletter_subscribers; duplicates are handled server-side.
+                newsletter.mutate({ email, source: "homepage" }, { onSuccess: () => form.reset() });
+              }}
+              className="mt-8 flex flex-col sm:flex-row gap-2 max-w-md mx-auto"
             >
-              {newsletter.isPending ? "Joining…" : "Subscribe"}
-            </Button>
-          </form>
-        </div>
-      </section>
+              <Input
+                name="email"
+                type="email"
+                required
+                placeholder="Your email"
+                className="bg-background text-foreground"
+              />
+              <Button
+                type="submit"
+                variant="secondary"
+                disabled={newsletter.isPending}
+                className="bg-background text-primary hover:bg-background/90"
+              >
+                {newsletter.isPending ? "Joining…" : "Subscribe"}
+              </Button>
+            </form>
+          </div>
+        </section>
+      )}
     </Shell>
   );
 }

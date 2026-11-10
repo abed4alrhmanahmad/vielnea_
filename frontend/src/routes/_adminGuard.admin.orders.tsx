@@ -16,6 +16,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useOrders, ordersService, type OrderStatus } from "@/admin/services/orders";
 import { paymentMethodLabel, paymentStatusLabel, type PaymentStatus } from "@/lib/payment";
+import { statusConflict } from "@/admin/lib/order-status";
 
 export const Route = createFileRoute("/_adminGuard/admin/orders")({
   head: () => ({
@@ -39,8 +40,8 @@ function OrdersPage() {
   const orders = useOrders();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<string>("all");
-  // The id, not a snapshot: the dialog reads the live row, so "Mark paid" and
-  // status changes show up in it as soon as the list refetches.
+  // The id, not a snapshot: the dialog reads the live row, so payment and
+  // status changes made in the list show up in it as soon as it refetches.
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = orders.find((o) => o.id === selectedId) ?? null;
   const rows = useMemo(
@@ -121,10 +122,19 @@ function OrdersPage() {
                       admin should not have to open a row to spot one. */}
                   <td>
                     <div className="text-xs">{paymentMethodLabel(o.paymentMethod)}</div>
+                    {/* The one place payment status is changed. */}
                     <Select
                       value={o.paymentStatus}
                       onValueChange={(v) => {
-                        ordersService.updatePaymentStatus(o.id, v as PaymentStatus);
+                        const next = v as PaymentStatus;
+                        if (
+                          statusConflict(o.status, next) &&
+                          !confirm(
+                            `Order ${o.orderNumber} is marked “paid”. Set its payment back to pending anyway? The order status is not changed.`,
+                          )
+                        )
+                          return;
+                        ordersService.updatePaymentStatus(o.id, next);
                       }}
                     >
                       <SelectTrigger className="w-28 h-8 mt-1">
@@ -140,10 +150,21 @@ function OrdersPage() {
                     <Select
                       value={o.status}
                       onValueChange={(v) => {
+                        const next = v as OrderStatus;
                         // Cancelling is the one move a mis-click shouldn't make.
-                        if (v === "cancelled" && !confirm(`Cancel order ${o.orderNumber}?`)) return;
+                        if (next === "cancelled" && !confirm(`Cancel order ${o.orderNumber}?`))
+                          return;
+                        // The two columns are independent and nothing syncs
+                        // them, so say so instead of silently contradicting.
+                        if (
+                          statusConflict(next, o.paymentStatus) &&
+                          !confirm(
+                            `The payment for ${o.orderNumber} is still pending. Mark the order “paid” anyway? Payment status is changed separately, in the Payment column.`,
+                          )
+                        )
+                          return;
                         // updateStatus() reports its own success/failure.
-                        ordersService.updateStatus(o.id, v as OrderStatus);
+                        ordersService.updateStatus(o.id, next);
                       }}
                     >
                       <SelectTrigger className="w-32 h-8">
@@ -157,6 +178,11 @@ function OrdersPage() {
                         ))}
                       </SelectContent>
                     </Select>
+                    {statusConflict(o.status, o.paymentStatus) && (
+                      <p className="mt-1 text-[11px] text-destructive max-w-32">
+                        Payment still pending
+                      </p>
+                    )}
                   </td>
                   <td className="text-muted-foreground">
                     {new Date(o.createdAt).toLocaleDateString()}
@@ -252,16 +278,15 @@ function OrdersPage() {
                 <Badge variant={selected.paymentStatus === "paid" ? "default" : "outline"}>
                   {paymentStatusLabel(selected.paymentStatus)}
                 </Badge>
-                {selected.paymentStatus === "pending" && (
-                  <Button
-                    size="sm"
-                    className="ml-auto"
-                    onClick={() => ordersService.updatePaymentStatus(selected.id, "paid")}
-                  >
-                    Mark paid
-                  </Button>
-                )}
               </div>
+              {statusConflict(selected.status, selected.paymentStatus) && (
+                <p className="text-xs text-destructive">
+                  {statusConflict(selected.status, selected.paymentStatus)}.
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Order status and payment status are changed in the orders list.
+              </p>
             </div>
           </DialogContent>
         </Dialog>

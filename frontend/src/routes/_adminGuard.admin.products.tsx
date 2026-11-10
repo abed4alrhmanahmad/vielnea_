@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Plus, Search, Pencil, Trash2, Star } from "lucide-react";
 import placeholderImg from "@/assets/product-dress.jpg";
@@ -32,6 +32,7 @@ import {
   type AdminProduct,
 } from "@/admin/services/products-admin";
 import { useCategoryOptions } from "@/admin/services/categories";
+import { sizeChangePayload, stockLevel } from "@/admin/lib/stock";
 import { errorMessage } from "@/lib/api/client";
 import { toast } from "sonner";
 
@@ -49,6 +50,8 @@ export const Route = createFileRoute("/_adminGuard/admin/products")({
  * is translated back to "" wherever the category is read.
  */
 const NO_CATEGORY = "__no_category__";
+
+const STOCK_BADGE = { out: "destructive", low: "secondary", ok: "outline" } as const;
 
 /**
  * Hides the native up/down spinner on a number input while keeping it a
@@ -181,13 +184,7 @@ function ProductsPage() {
                     )}
                   </td>
                   <td>
-                    <Badge
-                      variant={
-                        p.stock === 0 ? "destructive" : p.stock <= 5 ? "secondary" : "outline"
-                      }
-                    >
-                      {p.stock}
-                    </Badge>
+                    <Badge variant={STOCK_BADGE[stockLevel(p.stock)]}>{p.stock}</Badge>
                   </td>
                   <td>
                     <Badge variant={p.published ? "default" : "secondary"}>
@@ -278,6 +275,7 @@ function ProductEditor({
   const [isNewArrival, setIsNewArrival] = useState(!!initial?.isNew);
   const [images, setImages] = useState<string[]>(initial?.images ?? []);
   const [mainImageIndex, setMainImageIndex] = useState(initial?.mainImageIndex ?? 0);
+  const [saving, setSaving] = useState(false);
   const [featured, setFeatured] = useState(!!initial?.featured);
   const [published, setPublished] = useState(initial?.published ?? true);
   // Model height/wearing size are optional — a new product starts blank
@@ -316,7 +314,7 @@ function ProductEditor({
     else if (mainImageIndex === swap) setMainImageIndex(idx);
   }
 
-  function save() {
+  async function save() {
     // Every field here is optional — title included. An empty form is a
     // valid product; the API supplies the same safe defaults ('' / 0 / no
     // category) it already uses for every other optional column.
@@ -362,8 +360,39 @@ function ProductEditor({
     // The service reports success or failure itself once the request resolves.
     // Announcing success here too would claim the save worked even when the
     // API rejected it.
-    if (isNew) productsService.create(payload as never);
-    else productsService.update(initial!.id, payload as never);
+    if (isNew) {
+      productsService.create(payload as never);
+      onClose();
+      return;
+    }
+
+    // Editing: stock belongs to Inventory. Never send the stock this dialog
+    // read when it opened — that snapshot silently reverted any Inventory
+    // change made since. Sizes are only rewritten when the size list itself
+    // changed, and then with each size's current stock read fresh.
+    const {
+      stock: _stock,
+      sizeStock: _sizeStock,
+      sizes: _sizes,
+      ...rest
+    } = payload as typeof payload & { sizes: string[] };
+    let sizePart: ReturnType<typeof sizeChangePayload> = null;
+    if (sizeChangePayload(initial!.sizes, sizeList, {}) !== null) {
+      setSaving(true);
+      let current: AdminProduct | undefined;
+      try {
+        current = (await productsService.fetch()).find((p) => p.uuid === initial!.uuid);
+      } catch {
+        current = undefined;
+      }
+      setSaving(false);
+      if (!current) {
+        toast.error("Could not read the current stock — nothing was saved. Try again.");
+        return;
+      }
+      sizePart = sizeChangePayload(current.sizes, sizeList, current.sizeStock ?? {});
+    }
+    productsService.update(initial!.id, { ...rest, ...(sizePart ?? {}) } as never);
     onClose();
   }
 
@@ -459,50 +488,70 @@ function ProductEditor({
               className={NUMBER_INPUT_CLASS}
             />
           </div>
-          <div>
-            <Label>Stock{sizeList.length > 0 ? " (total of the sizes)" : ""}</Label>
-            {sizeList.length > 0 ? (
-              <Input value={sizedTotal} readOnly disabled className={NUMBER_INPUT_CLASS} />
-            ) : (
-              <Input
-                type="number"
-                inputMode="numeric"
-                step={1}
-                min={0}
-                placeholder="Not set"
-                value={stock}
-                onChange={(e) => setStock(e.target.value === "" ? "" : Number(e.target.value))}
-                className={NUMBER_INPUT_CLASS}
-              />
-            )}
-          </div>
-          {sizeList.length > 0 && (
-            <div className="md:col-span-2">
-              <Label>Stock per size</Label>
-              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mt-1">
-                {sizeList.map((s) => (
-                  <label key={s} className="text-xs text-muted-foreground space-y-1">
-                    <span>{s}</span>
-                    <Input
-                      type="number"
-                      inputMode="numeric"
-                      step={1}
-                      min={0}
-                      placeholder="0"
-                      aria-label={`Stock for size ${s}`}
-                      value={sizeStock[s] ?? ""}
-                      onChange={(e) =>
-                        setSizeStock((prev) => ({
-                          ...prev,
-                          [s]: e.target.value === "" ? "" : Number(e.target.value),
-                        }))
-                      }
-                      className={NUMBER_INPUT_CLASS}
-                    />
-                  </label>
-                ))}
-              </div>
+          {!isNew ? (
+            <div className="md:col-span-2 rounded-md border border-border p-3 text-sm space-y-1">
+              <Label>Stock</Label>
+              <p>
+                {initial!.stock} in stock
+                {initial!.sizes.length > 0 &&
+                  ` — ${initial!.sizes.map((s) => `${s}: ${initial!.sizeStock?.[s] ?? 0}`).join(", ")}`}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Stock is managed under{" "}
+                <Link to="/admin/inventory" className="text-primary hover:underline">
+                  Inventory
+                </Link>
+                . Saving here never changes it; a size added to the list above starts at 0.
+              </p>
             </div>
+          ) : (
+            <>
+              <div>
+                <Label>Stock{sizeList.length > 0 ? " (total of the sizes)" : ""}</Label>
+                {sizeList.length > 0 ? (
+                  <Input value={sizedTotal} readOnly disabled className={NUMBER_INPUT_CLASS} />
+                ) : (
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    step={1}
+                    min={0}
+                    placeholder="Not set"
+                    value={stock}
+                    onChange={(e) => setStock(e.target.value === "" ? "" : Number(e.target.value))}
+                    className={NUMBER_INPUT_CLASS}
+                  />
+                )}
+              </div>
+              {sizeList.length > 0 && (
+                <div className="md:col-span-2">
+                  <Label>Stock per size</Label>
+                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mt-1">
+                    {sizeList.map((s) => (
+                      <label key={s} className="text-xs text-muted-foreground space-y-1">
+                        <span>{s}</span>
+                        <Input
+                          type="number"
+                          inputMode="numeric"
+                          step={1}
+                          min={0}
+                          placeholder="0"
+                          aria-label={`Stock for size ${s}`}
+                          value={sizeStock[s] ?? ""}
+                          onChange={(e) =>
+                            setSizeStock((prev) => ({
+                              ...prev,
+                              [s]: e.target.value === "" ? "" : Number(e.target.value),
+                            }))
+                          }
+                          className={NUMBER_INPUT_CLASS}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
           <div>
             <Label>Status</Label>
@@ -626,7 +675,9 @@ function ProductEditor({
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={save}>{isNew ? "Create" : "Save changes"}</Button>
+          <Button onClick={() => void save()} disabled={saving}>
+            {saving ? "Saving…" : isNew ? "Create" : "Save changes"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

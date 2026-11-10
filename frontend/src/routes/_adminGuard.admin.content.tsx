@@ -71,8 +71,9 @@ function ContentPage() {
 
   const saveAll = () => {
     if (!data) return;
-    // Each group is a document in site_content; the store row is separate.
-    // Only what differs from the saved copy is sent.
+    // Each group is a document in site_content. Only what differs from the
+    // saved copy is sent. Store name, currency and shipping are not edited
+    // here any more — Settings is their one editor.
     const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
     const groups: Record<string, unknown> = {};
     for (const key of [
@@ -85,12 +86,11 @@ function ContentPage() {
     ] as const) {
       if (!same(draft[key], data[key])) groups[key] = draft[key];
     }
-    const store = same(draft.store, data.store) ? undefined : draft.store;
-    if (Object.keys(groups).length === 0 && !store) {
+    if (Object.keys(groups).length === 0) {
       toast("No changes to save");
       return;
     }
-    save.mutate({ groups, store });
+    save.mutate({ groups });
   };
 
   return (
@@ -119,7 +119,6 @@ function ContentPage() {
           <TabsTrigger value="footer">Footer</TabsTrigger>
           <TabsTrigger value="contact">Contact</TabsTrigger>
           <TabsTrigger value="testimonials">Testimonials</TabsTrigger>
-          <TabsTrigger value="store">Store</TabsTrigger>
         </TabsList>
 
         {/* ---------------------------------------------------- announcement */}
@@ -261,7 +260,10 @@ function ContentPage() {
                     onChange={(e) => patch("footer", { legal: e.target.value })}
                   />
                 </Field>
-                <Field label="Instagram URL">
+                <Field
+                  label="Instagram URL"
+                  hint="Also the target of the homepage Instagram strip's link."
+                >
                   <Input
                     value={draft.social.instagram}
                     onChange={(e) => patch("social", { instagram: e.target.value })}
@@ -383,6 +385,10 @@ function ContentPage() {
                 <p className="text-xs uppercase tracking-[0.15em] text-muted-foreground">
                   Newsletter block
                 </p>
+                <p className="text-xs text-muted-foreground">
+                  This heading and description are used by both the footer block and the homepage
+                  newsletter band. The homepage band is switched on or off under Pages → Homepage.
+                </p>
                 <Field label="Heading">
                   <Input
                     value={draft.newsletter.title}
@@ -401,7 +407,7 @@ function ContentPage() {
                     checked={draft.newsletter.enabled}
                     onCheckedChange={(v) => patch("newsletter", { enabled: v })}
                   />
-                  <span className="text-sm">Show the newsletter block</span>
+                  <span className="text-sm">Show the newsletter block in the footer</span>
                 </div>
               </div>
             </CardContent>
@@ -410,36 +416,6 @@ function ContentPage() {
 
         <TabsContent value="testimonials">
           <TestimonialsEditor />
-        </TabsContent>
-
-        {/* ---------------------------------------------------------- store */}
-        <TabsContent value="store">
-          <Card>
-            <CardContent className="pt-6 space-y-4 max-w-2xl">
-              <p className="text-xs text-muted-foreground">
-                Shipping values are used by the cart and checkout on the server.
-              </p>
-              <Field label="Store name">
-                <Input
-                  value={draft.store.storeName}
-                  onChange={(e) => patch("store", { storeName: e.target.value })}
-                />
-              </Field>
-              <Field label="Standard shipping rate">
-                <Input
-                  type="number"
-                  value={draft.store.standardShipping}
-                  onChange={(e) => patch("store", { standardShipping: Number(e.target.value) })}
-                />
-              </Field>
-              <Field label="Currency" hint="Three-letter code, e.g. USD">
-                <Input
-                  value={draft.store.currency}
-                  onChange={(e) => patch("store", { currency: e.target.value.toUpperCase() })}
-                />
-              </Field>
-            </CardContent>
-          </Card>
         </TabsContent>
       </Tabs>
     </div>

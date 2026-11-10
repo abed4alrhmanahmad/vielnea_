@@ -120,7 +120,8 @@ export function FeaturedCategoriesEditor({ section }: { section: SiteSection }) 
             <p className="font-display text-lg">Featured categories</p>
             <p className="text-xs text-muted-foreground">
               The category image cards under the hero. Leave a title, image or link empty to use the
-              category's own.
+              category's own name and image from Categories, where categories are also enabled or
+              disabled.
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -241,12 +242,19 @@ function CardRow({
                 category not found — this card is not shown
               </span>
             )}
+            {/* Categories is the one place a category is switched on or off; a
+                disabled category's card is left out of the homepage by itself. */}
+            {category && !category.enabled && (
+              <span className="ml-2 text-xs text-destructive">
+                disabled under Categories — this card is not shown
+              </span>
+            )}
           </p>
           <div className="flex items-center gap-1">
             <div className="flex items-center gap-2 mr-2">
               <Switch checked={card.visible} onCheckedChange={(v) => onChange({ visible: v })} />
               <span className="text-xs text-muted-foreground">
-                {card.visible ? "Shown" : "Hidden"}
+                {card.visible ? "Shown on homepage" : "Hidden on homepage"}
               </span>
             </div>
             <Button

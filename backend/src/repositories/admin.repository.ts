@@ -1,5 +1,12 @@
 import { queryMany, queryOne } from "../lib/db.js";
 
+/**
+ * Out of stock is exactly 0; low is 1 to this. The admin screens use the same
+ * value (frontend/src/admin/lib/stock.ts), so the stats, the notifications
+ * and every page agree on what "low" means.
+ */
+export const LOW_STOCK_THRESHOLD = 5;
+
 export interface DashboardStats {
   revenue: { total: number; last30Days: number; averageOrderValue: number };
   orders: { total: number; last30Days: number; byStatus: Record<string, number> };
@@ -78,7 +85,7 @@ export const adminRepository = {
         (SELECT count(*)::int FROM public.orders WHERE created_at >= now() - interval '30 days') AS orders_30,
         (SELECT count(*)::int FROM public.products) AS products_total,
         (SELECT count(*)::int FROM public.products WHERE stock = 0) AS out_of_stock,
-        (SELECT count(*)::int FROM public.products WHERE stock > 0 AND stock <= 5) AS low_stock,
+        (SELECT count(*)::int FROM public.products WHERE stock > 0 AND stock <= ${LOW_STOCK_THRESHOLD}) AS low_stock,
         (SELECT COALESCE(sum(stock), 0) FROM public.products) AS inventory,
         (SELECT count(*)::int FROM public.users WHERE role = 'customer') AS customers_total,
         (SELECT count(DISTINCT user_id)::int FROM public.orders) AS customers_with_orders,
@@ -273,7 +280,7 @@ export const adminRepository = {
       ),
       queryMany<{ id: string; title: string; stock: number; updated_at: Date }>(
         `SELECT id, title, stock, updated_at FROM public.products
-         WHERE stock <= 5 ORDER BY stock ASC LIMIT 10`,
+         WHERE stock <= ${LOW_STOCK_THRESHOLD} ORDER BY stock ASC LIMIT 10`,
       ),
       queryMany<{ id: string; name: string; subject: string | null; created_at: Date }>(
         `SELECT id, name, subject, created_at FROM public.contact_messages

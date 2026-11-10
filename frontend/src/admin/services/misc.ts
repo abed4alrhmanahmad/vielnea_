@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { errorMessage } from "@/lib/api/client";
 import {
   apiClient,
   adminKeys,
+  invalidateAdmin,
   runAdminMutation,
   useAdminList,
   useAdminRecord,
@@ -276,47 +279,39 @@ export function useMedia(): MediaAsset[] {
 }
 
 // ---------- Store settings ----------
-// Backed by the store_settings row plus the site_content documents. The
-// shipping rate here is the one the server uses at checkout.
+// The store_settings fields that are managed here and nowhere else. The
+// shipping rate is the one the server charges at checkout.
+//
+// Deliberately NOT here any more (each has exactly one editor elsewhere):
+//   - social links           -> Site Content → Footer  (site_content.social)
+//   - customer contact email,
+//     phone and address      -> Site Content → Contact (site_content.contact),
+//                               the only copy the storefront reads. The old
+//                               store_email/phone/address columns are left in
+//                               the table untouched; nothing reads them.
 export interface StoreSettings {
   storeName: string;
-  storeEmail: string;
-  storePhone: string;
-  storeAddress: string;
   currency: string;
   standardShipping: number;
-  socialInstagram: string;
-  socialFacebook: string;
-  socialTwitter: string;
 }
 
 interface ApiSettingsPayload {
-  store: StoreSettings;
-  social?: { instagram?: string; facebook?: string; twitter?: string };
-  contact?: { email?: string; phone?: string; address?: string };
+  store: Partial<StoreSettings>;
   payment_methods?: { cardEnabled?: boolean; codEnabled?: boolean };
   cardPayments?: { ready?: boolean; provider?: string };
 }
 
 const SETTINGS_FALLBACK: StoreSettings = {
   storeName: "Vielinea",
-  storeEmail: "",
-  storePhone: "",
-  storeAddress: "",
   currency: "USD",
   standardShipping: 15,
-  socialInstagram: "",
-  socialFacebook: "",
-  socialTwitter: "",
 };
 
 function toSettings(api: ApiSettingsPayload): StoreSettings {
   return {
-    ...SETTINGS_FALLBACK,
-    ...api.store,
-    socialInstagram: api.social?.instagram ?? "",
-    socialFacebook: api.social?.facebook ?? "",
-    socialTwitter: api.social?.twitter ?? "",
+    storeName: api.store?.storeName ?? SETTINGS_FALLBACK.storeName,
+    currency: api.store?.currency ?? SETTINGS_FALLBACK.currency,
+    standardShipping: Number(api.store?.standardShipping ?? SETTINGS_FALLBACK.standardShipping),
   };
 }
 
@@ -327,44 +322,25 @@ export const settingsService = {
   async fetch(): Promise<StoreSettings> {
     return toSettings(await apiClient.get<ApiSettingsPayload>("/admin/site/settings"));
   },
-  save(next: Partial<StoreSettings>): void {
-    const store: Record<string, unknown> = {};
-    for (const key of [
-      "storeName",
-      "storeEmail",
-      "storePhone",
-      "storeAddress",
-      "currency",
-      "standardShipping",
-    ] as const) {
-      if (next[key] !== undefined) store[key] = next[key];
+  /**
+   * Saves only the fields passed in — the caller sends what changed, so a
+   * form left open never writes back values it merely loaded. Resolves to
+   * whether the save succeeded; the toast is raised here either way.
+   */
+  async save(changes: Partial<StoreSettings>): Promise<boolean> {
+    if (Object.keys(changes).length === 0) {
+      toast("No changes to save");
+      return true;
     }
-
-    runAdminMutation(
-      async () => {
-        if (Object.keys(store).length > 0) {
-          await apiClient.put("/admin/site/settings/store", store);
-        }
-        if (
-          next.socialInstagram !== undefined ||
-          next.socialFacebook !== undefined ||
-          next.socialTwitter !== undefined
-        ) {
-          await apiClient.put("/admin/site/settings/social", {
-            value: {
-              instagram: next.socialInstagram ?? "",
-              facebook: next.socialFacebook ?? "",
-              twitter: next.socialTwitter ?? "",
-            },
-          });
-        }
-      },
-      {
-        invalidate: [["admin", "site"], ["site"], ["admin", "settings"]],
-        success: "Settings saved",
-        failure: "Could not save the settings",
-      },
-    );
+    try {
+      await apiClient.put("/admin/site/settings/store", changes);
+    } catch (error) {
+      toast.error(errorMessage(error, "Could not save the settings"));
+      return false;
+    }
+    invalidateAdmin(["admin", "site"], ["site"], ["admin", "settings"]);
+    toast.success("Settings saved");
+    return true;
   },
   key: "admin-settings",
 };

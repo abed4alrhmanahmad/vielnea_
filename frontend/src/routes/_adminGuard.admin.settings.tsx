@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageHeader } from "@/admin/components/admin-shell";
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AdminAccountCards } from "@/admin/components/admin-account-cards";
+import { changedFields } from "@/admin/lib/changed-fields";
 import { adminAuth } from "@/admin/services/admin-auth";
 import {
   useSettingsQuery,
@@ -71,28 +72,55 @@ function AdminSettingsPage() {
 function SettingsForm({ initial }: { initial: StoreSettings }) {
   const payments = usePaymentMethodSettings();
   const [d, setD] = useState<StoreSettings>(initial);
-  const text = (k: keyof StoreSettings) => ({
-    value: d[k],
-    onChange: (v: string) => setD((prev) => ({ ...prev, [k]: v })),
-  });
+  // What the server last confirmed. Save sends only the fields that differ
+  // from it, so this form never writes back a value it merely loaded.
+  const [saved, setSaved] = useState<StoreSettings>(initial);
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    const changes = changedFields(saved, d);
+    setBusy(true);
+    // save() raises its own success / failure / "no changes" toast.
+    const ok = await settingsService.save(changes);
+    setBusy(false);
+    if (ok) setSaved(d);
+  }
+
   return (
     <div>
       <PageHeader
         title="Settings"
         actions={
-          // save() reports its own success or failure once the API answers.
-          <Button onClick={() => settingsService.save(d)}>Save</Button>
+          <Button onClick={() => void save()} disabled={busy}>
+            {busy ? "Saving…" : "Save"}
+          </Button>
         }
       />
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardContent className="p-6 space-y-3">
             <h3 className="font-display mb-2">Store</h3>
-            <Field label="Store name" {...text("storeName")} />
-            <Field label="Email" {...text("storeEmail")} />
-            <Field label="Phone" {...text("storePhone")} />
-            <Field label="Address" {...text("storeAddress")} />
-            <Field label="Currency" {...text("currency")} />
+            <Field
+              label="Store name"
+              value={d.storeName}
+              onChange={(v) => setD((prev) => ({ ...prev, storeName: v }))}
+            />
+            <Field
+              label="Currency"
+              value={d.currency}
+              onChange={(v) => setD((prev) => ({ ...prev, currency: v.toUpperCase() }))}
+            />
+            <p className="text-xs text-muted-foreground">
+              Saved for the store record. The storefront does not display these two yet: prices are
+              shown in $, and the footer copyright is edited under Site Content → Footer.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Customer-facing email, phone and address are edited under{" "}
+              <Link to="/admin/content" className="text-primary hover:underline">
+                Site Content → Contact
+              </Link>
+              ; social links under Site Content → Footer.
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -104,14 +132,9 @@ function SettingsForm({ initial }: { initial: StoreSettings }) {
               value={d.standardShipping}
               onChange={(v) => setD((prev) => ({ ...prev, standardShipping: Number(v) }))}
             />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6 space-y-3">
-            <h3 className="font-display mb-2">Social</h3>
-            <Field label="Instagram" {...text("socialInstagram")} />
-            <Field label="Facebook" {...text("socialFacebook")} />
-            <Field label="Twitter" {...text("socialTwitter")} />
+            <p className="text-xs text-muted-foreground">
+              Charged on every order by the cart and checkout.
+            </p>
           </CardContent>
         </Card>
         <Card>

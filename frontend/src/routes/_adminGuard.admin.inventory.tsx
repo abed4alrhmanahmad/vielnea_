@@ -16,6 +16,16 @@ import {
   productsService,
   type AdminProduct,
 } from "@/admin/services/products-admin";
+import {
+  LOW_STOCK_THRESHOLD,
+  isLowStock,
+  isOutOfStock,
+  needsRestock,
+  stockLevel,
+} from "@/admin/lib/stock";
+
+const STOCK_BADGE = { out: "destructive", low: "secondary", ok: "outline" } as const;
+const STOCK_LABEL = { out: "Out", low: "Low", ok: "OK" } as const;
 
 export const Route = createFileRoute("/_adminGuard/admin/inventory")({
   head: () => ({
@@ -86,8 +96,8 @@ function AdminInventoryPage() {
       products.filter(
         (p) =>
           filter === "all" ||
-          (filter === "low" && p.stock > 0 && p.stock <= 5) ||
-          (filter === "out" && p.stock === 0),
+          (filter === "low" && isLowStock(p.stock)) ||
+          (filter === "out" && isOutOfStock(p.stock)),
       ),
     [products, filter],
   );
@@ -95,7 +105,7 @@ function AdminInventoryPage() {
     <div>
       <PageHeader
         title="Inventory"
-        description={`${products.filter((p) => p.stock <= 5).length} products need attention`}
+        description={`${products.filter((p) => needsRestock(p.stock)).length} products need attention (low or out of stock). Stock is edited here only.`}
       />
       <Card className="mb-4">
         <CardContent className="p-4">
@@ -105,7 +115,7 @@ function AdminInventoryPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All products</SelectItem>
-              <SelectItem value="low">Low stock (≤ 5)</SelectItem>
+              <SelectItem value="low">Low stock (1–{LOW_STOCK_THRESHOLD})</SelectItem>
               <SelectItem value="out">Out of stock</SelectItem>
             </SelectContent>
           </Select>
@@ -148,12 +158,8 @@ function AdminInventoryPage() {
                     />
                   </td>
                   <td>
-                    <Badge
-                      variant={
-                        p.stock === 0 ? "destructive" : p.stock <= 5 ? "secondary" : "outline"
-                      }
-                    >
-                      {p.stock === 0 ? "Out" : p.stock <= 5 ? "Low" : "OK"}
+                    <Badge variant={STOCK_BADGE[stockLevel(p.stock)]}>
+                      {STOCK_LABEL[stockLevel(p.stock)]}
                     </Badge>
                   </td>
                 </tr>

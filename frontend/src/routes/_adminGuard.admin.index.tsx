@@ -7,16 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { useAdminProducts } from "@/admin/services/products-admin";
 import { useOrders } from "@/admin/services/orders";
 import { useCustomers } from "@/admin/services/customers";
+import { isLowStock } from "@/admin/lib/stock";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  BarChart,
-  Bar,
-} from "recharts";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, BarChart, Bar } from "recharts";
 
 export const Route = createFileRoute("/_adminGuard/admin/")({
   head: () => ({
@@ -46,7 +39,7 @@ function DashboardPage() {
       customers: customers.length,
       products: products.length,
       pending: orders.filter((o) => o.status === "pending").length,
-      lowStock: products.filter((p) => p.stock > 0 && p.stock <= 5).length,
+      lowStock: products.filter((p) => isLowStock(p.stock)).length,
     };
   }, [orders, customers, products]);
 

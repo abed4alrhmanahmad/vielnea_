@@ -36,7 +36,7 @@ function AdminMediaPage() {
     <div>
       <PageHeader
         title="Media Library"
-        description="Manage store imagery"
+        description="A reference list of uploaded images. Images uploaded inside Products, Hero Slides and other editors are stored with those records and are not listed here."
         actions={
           <label className="inline-flex items-center gap-2 px-3 h-9 border border-border rounded text-sm cursor-pointer hover:bg-secondary">
             Upload

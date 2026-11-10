@@ -85,23 +85,19 @@ function useCmsInvalidator() {
  * Saves the Website Content form in one go: only the groups that changed, in
  * parallel, with a single result toast. (Save used to PUT all seven groups
  * every time and raise seven "saved" toasts, even when one field changed.)
+ *
+ * The store_settings row is not written from here: Admin → Settings is the
+ * single editor for store name, currency and shipping.
  */
 export function useSaveContent() {
   const invalidate = useCmsInvalidator();
   return useMutation({
-    mutationFn: async ({
-      groups,
-      store,
-    }: {
-      groups: Record<string, unknown>;
-      store?: Partial<AdminSiteSettings["store"]>;
-    }) => {
-      await Promise.all([
-        ...Object.entries(groups).map(([key, value]) =>
+    mutationFn: async ({ groups }: { groups: Record<string, unknown> }) => {
+      await Promise.all(
+        Object.entries(groups).map(([key, value]) =>
           apiClient.put(`/admin/site/settings/${key}`, { value }),
         ),
-        ...(store ? [apiClient.put("/admin/site/settings/store", store)] : []),
-      ]);
+      );
     },
     // Refetch either way: after a partial failure the form shows what was saved.
     onSettled: () => invalidate(),
@@ -120,19 +116,6 @@ export function useSaveSettingGroup() {
       toast.success("Content saved");
     },
     onError: (error) => toast.error(errorMessage(error, "Could not save the content")),
-  });
-}
-
-export function useSaveStoreSettings() {
-  const invalidate = useCmsInvalidator();
-  return useMutation({
-    mutationFn: (input: Partial<AdminSiteSettings["store"]>) =>
-      apiClient.put("/admin/site/settings/store", input),
-    onSuccess: () => {
-      invalidate();
-      toast.success("Store settings saved");
-    },
-    onError: (error) => toast.error(errorMessage(error, "Could not save the settings")),
   });
 }
 
